@@ -1,0 +1,67 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+  pull_request:
+    branches:
+      - "*"
+
+jobs:
+  ci:
+    name: Lint, Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Install Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Install project dependencies
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+
+      # Run Ruff linter
+      - name: Run Ruff
+        run: |
+          ruff check .
+
+      # Run unit tests
+      - name: Run Pytest
+        run: |
+          pytest tests/unit
+
+      # Validate Docker Compose file
+      - name: Validate Docker Compose
+        run: |
+          docker compose config
+
+      # Build Docker images
+      - name: Build Docker Images
+        run: |
+          docker compose build
+
+      # Start services
+      - name: Start Services
+        run: docker compose up -d
+
+      # Run integration tests
+      - name: Integration Tests
+        run: pytest tests/integration
+
+      # Stop services
+      - name: Stop Services
+        if: always()
+        run: docker compose down
