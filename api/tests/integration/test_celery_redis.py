@@ -1,22 +1,18 @@
 import time
+import httpx
 
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-client = TestClient(app)
+BASE_URL = "http://localhost:8000"
 
 
 def test_ping_task():
-
-    response = client.post("/debug/ping")
+    response = httpx.post(f"{BASE_URL}/debug/ping")
 
     assert response.status_code == 200
 
     task_id = response.json()["task_id"]
 
-    for _ in range(10):
-        result = client.get(f"/debug/ping/{task_id}")
+    for _ in range(20):
+        result = httpx.get(f"{BASE_URL}/debug/ping/{task_id}")
 
         data = result.json()
 

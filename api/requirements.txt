@@ -5,3 +5,4 @@ redis==5.0.8
 pydantic-settings==2.5.2
 ruff
 pytest
+httpx
