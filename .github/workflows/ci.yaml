@@ -9,6 +9,10 @@ on:
     branches:
       - "*"
 
+defaults:
+  run:
+    working-directory: api
+
 jobs:
   ci:
     name: Lint, Test & Build
@@ -41,6 +45,9 @@ jobs:
       - name: Run Pytest
         run: |
           pytest tests/unit
+
+      - name: Create .env
+        run: cp .env.example .env
 
       # Validate Docker Compose file
       - name: Validate Docker Compose
