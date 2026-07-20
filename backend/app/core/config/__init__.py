@@ -10,9 +10,9 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Database
-    POSTGRES_USER: Optional[str]
-    POSTGRES_PASSWORD: Optional[str]
-    POSTGRES_DB: Optional[str]
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
 
     # Celery / Redis
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
         # CI creates `.env` at the repository root. When running the env-check
         # from the `backend` working directory we want to load that file.
         env_file = "../.env"
+        extra = "ignore"
 
 
 _INSTANCE: Optional[Settings] = None
