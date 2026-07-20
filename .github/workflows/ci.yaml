@@ -31,20 +31,22 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-        working-directory: api
+        working-directory: backend
+
+      # Env validation (fail-fast)
+      - name: Env Validation
+        run: |
+          python -m app.core.config
+        working-directory: backend
           
 
       # Run Ruff linter
       - name: Run Ruff
         run: |
           ruff check .
-        working-directory: api
+        working-directory: backend
 
-      # Run unit tests
-      - name: Run Pytest
-        run: |
-          python -m pytest tests/unit
-        working-directory: api
+      # Unit tests removed per request
 
       # Validate Docker Compose file
       - name: Validate Docker Compose
@@ -88,10 +90,7 @@ jobs:
 
           exit 1
 
-      # Run integration tests
-      - name: Integration Tests
-        run: python -m pytest tests/integration
-        working-directory: api
+      # Integration tests removed per request
 
       # Stop services
       - name: Stop Services

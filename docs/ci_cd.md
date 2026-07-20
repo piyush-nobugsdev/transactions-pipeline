@@ -13,6 +13,9 @@ it.
 
 # Pipeline Overview
 
+        Env Validation (fail-fast)
+        │
+        ▼
 ``` text
 Developer Push / PR
         │
@@ -39,7 +42,6 @@ Validate Docker Compose
         │
         ▼
 Build Docker Images
-        │
         ▼
 Start Services
         │
@@ -47,8 +49,25 @@ Start Services
 Wait for API Health
         │
         ▼
-Integration Tests
-        │
+
+## Env Validation
+
+After dependencies are installed CI should run the project's environment
+validation to fail early when required configuration is missing or invalid.
+
+Implementation:
+
+- The backend exposes a minimal CLI via `app.core.config` that instantiates
+  the `Settings` model and exits non-zero on `ValidationError`.
+- CI runs `python -m app.core.config` (from the `backend` working directory)
+  immediately after dependency installation. If this step fails the pipeline
+  stops and the failure logs include pydantic's validation errors.
+
+Why:
+
+- Prevents building images or starting services when essential env values are
+  absent or malformed.
+- Keeps failures early and the debugging flow simple.
         ▼
 docker compose down (always)
 ```
@@ -199,6 +218,32 @@ Rules:
 Require running services.
 
 Communicate with the API over HTTP.
+
+## Tests and current CI configuration
+
+- Current repo configuration: the main CI workflow does not run unit or
+        integration tests by default (these steps were removed from the primary
+        CI job to speed the main pipeline). Tests may be re-enabled or moved to
+        separate jobs (recommended) that run less frequently or on merge-to-main.
+
+- About `backend/tests/test_config.py`:
+        - Type: Unit test (no Docker required). It verifies that the `Settings`
+                model reads environment variables correctly using `pytest`'s `monkeypatch`.
+        - Running in CI: the CI job creates `.env` from `.env.example` early in the
+                pipeline. If the test is re-enabled, CI will have those env values and the
+                test should pass in CI.
+        - Local developer note: running pytest locally without an `.env` file may
+                cause the test to fail because `Settings` declares required fields
+                (for example `POSTGRES_USER`). To make unit tests robust and runnable on
+                developer machines, prefer one of the following:
+                - Monkeypatch all required env vars inside the test.
+                - Instantiate `Settings` with explicit overrides in tests.
+                - Provide defaults for truly optional fields in `Settings` (use
+                        cautiously — required production config should usually stay required).
+
+- Recommendation: keep fast unit tests on the runner for PR feedback and run
+        integration tests in a separate `integration` job that uses `docker compose`
+        to bring up services. This balances fast feedback with environment fidelity.
 
 ------------------------------------------------------------------------
 
