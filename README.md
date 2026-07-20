@@ -68,7 +68,7 @@ curl http://localhost:8000/health
 Redis → result goes back through Redis → API reads it):
 ```bash
 # Enqueue
-curl -X POST http://localhost:8000/debug/ping
+curl.exe -X POST http://localhost:8000/debug/ping #use curl.exe in powershell
 # {"task_id":"<some-uuid>"}
 
 # Poll the result (status will be PENDING for ~1s, then SUCCESS)

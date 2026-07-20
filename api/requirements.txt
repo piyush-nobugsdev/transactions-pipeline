@@ -1,8 +1,0 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-celery[redis]==5.4.0
-redis==5.0.8
-pydantic-settings==2.5.2
-ruff
-pytest
-httpx
