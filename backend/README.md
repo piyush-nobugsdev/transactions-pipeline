@@ -24,3 +24,5 @@ backend/
 - Put business rules in domain services.
 - Keep persistence and external integrations behind the infrastructure layer.
 - Keep cross-cutting concerns centralized in core.
+- Raise typed application exceptions from services and domain code; FastAPI converts them globally into consistent JSON error responses.
+- Avoid route-level try/except blocks for expected domain errors; use the shared exception handlers instead.

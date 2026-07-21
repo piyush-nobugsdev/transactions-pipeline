@@ -17,7 +17,10 @@ This repository is being structured as a monorepo with a clear separation betwee
    - Request DTOs and response DTOs live near the API layer.
    - Domain objects validate their own invariants.
    - Infrastructure boundaries validate external data.
-
+- Centralized exception handling
+   - Shared application exceptions live under backend/app/core/exceptions.
+   - Global FastAPI handlers normalize application, validation, HTTP, and unexpected errors into a consistent schema.
+   - Service and domain code raise typed exceptions; routes remain thin and do not need repetitive try/except blocks.
 2. Domain/infrastructure separation
    - Domain services contain business rules.
    - Repositories and adapters implement persistence and external integrations.

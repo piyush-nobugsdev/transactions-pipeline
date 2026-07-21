@@ -1,4 +1,4 @@
-import os
+
 
 from app.core.config import Settings
 
