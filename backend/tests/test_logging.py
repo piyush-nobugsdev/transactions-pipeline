@@ -1,15 +1,7 @@
 import io
 import json
-import logging
 
-from app.core.logging import (
-    configure_logging,
-    clear_correlation_context,
-    get_correlation_context,
-    get_logger,
-    log_stage,
-    set_correlation_context,
-)
+from app.core.logging import configure_logging, get_logger, log_stage, set_correlation_context
 
 
 def _capture_logs(**kwargs):
@@ -56,10 +48,19 @@ def test_stage_logging_includes_duration_ms():
     with log_stage(logger, "data_cleaning", event="stage_completed"):
         pass
 
-    payload = json.loads(stream.getvalue().strip())
-    assert payload["stage"] == "data_cleaning"
-    assert payload["event"] == "stage_completed"
-    assert payload["duration_ms"] >= 0
+    payloads = [json.loads(line) for line in stream.getvalue().splitlines() if line.strip()]
+
+    assert len(payloads) == 2
+
+    start_payload = payloads[0]
+    completed_payload = payloads[1]
+
+    assert start_payload["event"] == "data_cleaning_started"
+    assert start_payload["stage"] == "data_cleaning"
+
+    assert completed_payload["stage"] == "data_cleaning"
+    assert completed_payload["event"] == "stage_completed"
+    assert completed_payload["duration_ms"] >= 0
 
 
 def test_sensitive_values_are_redacted():
