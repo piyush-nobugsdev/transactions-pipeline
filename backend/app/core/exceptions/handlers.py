@@ -1,28 +1,38 @@
 from __future__ import annotations
 
-import logging
-
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.logging import get_logger
+
 from .base import AppException, ErrorDetails, ErrorResponse, ErrorResponseModel
 from .common import InternalServerError
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _build_error_payload(code: str, message: str, details: ErrorDetails | None = None) -> ErrorResponse:
     return ErrorResponse(error=ErrorResponseModel(code=code, message=message, details=details))
 
 
-async def app_exception_handler(_: Request, exc: AppException) -> JSONResponse:
+async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+    logger.warning(
+        "application exception handled",
+        extra={
+            "event": "application_exception_handled",
+            "exception_type": type(exc).__name__,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": exc.status_code,
+        },
+    )
     payload = exc.to_response()
     return JSONResponse(status_code=exc.status_code, content=payload.model_dump())
 
 
-async def request_validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     details = {"fields": []}
     for error in exc.errors():
         details["fields"].append(
@@ -32,11 +42,29 @@ async def request_validation_exception_handler(_: Request, exc: RequestValidatio
                 "type": error.get("type", "validation_error"),
             }
         )
+    logger.warning(
+        "request validation failed",
+        extra={
+            "event": "request_validation_failed",
+            "method": request.method,
+            "path": request.url.path,
+            "exception_type": type(exc).__name__,
+        },
+    )
     payload = _build_error_payload("VALIDATION_ERROR", "Request validation failed.", details)
     return JSONResponse(status_code=422, content=payload.model_dump())
 
 
-async def http_exception_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    logger.warning(
+        "http exception handled",
+        extra={
+            "event": "http_exception_handled",
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": exc.status_code,
+        },
+    )
     payload = _build_error_payload("HTTP_ERROR", exc.detail if isinstance(exc.detail, str) else "Request failed.", None)
     return JSONResponse(status_code=exc.status_code, content=payload.model_dump())
 
@@ -45,6 +73,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     logger.exception(
         "Unhandled exception",
         extra={
+            "event": "unhandled_exception",
             "method": request.method,
             "path": request.url.path,
             "exception_type": type(exc).__name__,

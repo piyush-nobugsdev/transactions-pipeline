@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/0"
 
+    # Logging
+    LOG_LEVEL: str = "INFO"
+
     class Config:
         # CI creates `.env` at the repository root. When running the env-check
         # from the `backend` working directory we want to load that file.
