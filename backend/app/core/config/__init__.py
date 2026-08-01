@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
+    DATABASE_URL: str
 
     # Celery / Redis
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
@@ -36,6 +37,9 @@ def get_settings() -> Settings:
     if _INSTANCE is None:
         _INSTANCE = Settings()
     return _INSTANCE
+
+
+settings = get_settings()
 
 
 def main_check() -> int:

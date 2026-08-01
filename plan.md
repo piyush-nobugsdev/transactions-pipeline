@@ -333,7 +333,7 @@ Keep business logic independent from FastAPI-specific `HTTPException` where prac
 
 ### Status
 
-Recommended next foundational concern.
+completed
 
 ### Why it is required
 
