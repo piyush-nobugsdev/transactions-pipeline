@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import sys
-
+from pathlib import Path
 from typing import Optional
 
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+ENV_FILE = REPO_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -23,9 +26,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     class Config:
-        # CI creates `.env` at the repository root. When running the env-check
-        # from the `backend` working directory we want to load that file.
-        env_file = "../.env"
+        # Load the repo-level .env regardless of the working directory so dev,
+        # CI, and pytest all resolve the same configuration source.
+        env_file = str(ENV_FILE)
         extra = "ignore"
 
 
