@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     DATABASE_URL: str
 
+    # Object storage
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_KEY_ID: str
+    S3_BUCKET_NAME: str
+    S3_REGION: str
+    JOB_RETENTION_DAYS: int = 30
+    MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024
+
     # Celery / Redis
     CELERY_BROKER_URL: str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/0"

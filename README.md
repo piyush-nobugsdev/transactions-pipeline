@@ -4,8 +4,8 @@ AI-powered transaction processing pipeline: CSV upload → async Celery
 processing → data cleaning → anomaly detection → LLM batch classification →
 LLM narrative summary → polling API for results.
 
-> **Status:** Skeleton stage. Health check + dummy Celery task only.
-> Real pipeline logic comes next.
+> **Status:** Backend foundation plus the first audits/jobs API slice. CSV upload,
+> S3 storage, processing, and results are still under construction.
 
 ---
 
@@ -43,7 +43,7 @@ docker compose up --build
 ```
 
 That's it — one command. It will:
-1. Build the `api` image (installs Python deps from `api/requirements.txt`).
+1. Build the backend image (installs Python deps from `backend/requirements.txt`).
 2. Start Postgres and Redis.
 3. Start the FastAPI server (`api`) and the Celery worker (`worker`), both
    waiting for Postgres/Redis to report healthy first.
@@ -87,16 +87,17 @@ Redis → API container — is proven end to end.
 txn-pipeline/
 ├── docker-compose.yml      # orchestrates all 4 containers
 ├── .env.example             # template for required env vars
-├── api/
-│   ├── Dockerfile           # same image used by both api and worker services
+├── backend/
+│   ├── Dockerfile
 │   ├── requirements.txt
-│   └── app/
-│       ├── main.py          # FastAPI app + routes
-│       ├── celery_app.py    # Celery instance config
-│       └── tasks.py         # Celery task definitions
+│   ├── app/
+│   │   ├── main.py          # FastAPI app + routes
+│   │   ├── core/             # shared infrastructure
+│   │   └── modules/          # business modules
+│   └── tests/
 ```
 
-`api` and `worker` in `docker-compose.yml` build from the *same* Dockerfile
+`api` and `worker` in `docker-compose.yml` build from the backend Dockerfile
 and image — they're just the same codebase started with two different
 commands (`uvicorn ...` vs `celery ... worker`). This is a common pattern
 and keeps things simple: one requirements.txt, one Dockerfile, no code
@@ -107,3 +108,22 @@ duplication.
 ## 4. Notes for the video (design decisions)
 
 - *(none yet at this stage — will accumulate here as we build)*
+- The audits/jobs module owns job lifecycle use cases and keeps controllers,
+  application orchestration, domain contracts, infrastructure, docs, and tests
+  separated according to `AGENTS.md`.
+
+## 5. Audits / Jobs API
+
+The first business module exposes job metadata operations:
+
+```text
+POST   /v1/audits
+GET    /v1/audits
+GET    /v1/audits/{job_id}/status
+DELETE /v1/audits/{job_id}
+```
+
+See [backend/app/modules/audits/docs/README.md](backend/app/modules/audits/docs/README.md)
+for request and response details. The endpoint does not upload CSV content or
+dispatch processing yet; those capabilities will be added with the storage and
+processing milestones.

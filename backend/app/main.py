@@ -4,6 +4,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.infrastructure.celery_app import celery_app
 from app.core.infrastructure.tasks import ping
 from app.core.logging import configure_logging, get_logger, set_correlation_context
+from app.modules.audits.controllers.router import router as audits_router
 
 logger = get_logger(__name__)
 
@@ -12,6 +13,7 @@ def create_app() -> FastAPI:
     configure_logging(force=True)
     app = FastAPI(title="Transaction Pipeline API (backend)")
     register_exception_handlers(app)
+    app.include_router(audits_router)
 
     @app.middleware("http")
     async def correlation_middleware(request: Request, call_next):

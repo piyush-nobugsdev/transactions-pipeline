@@ -41,6 +41,17 @@ The backend must follow clear layer boundaries:
 
 Business logic must not be mixed with HTTP, persistence, or external service code.
 
+### Python package import rule
+
+Every module layer is a sibling under `app.modules.<module>` and must import
+across layers using the correct package depth. Code in
+`application/services/` or `application/mappers/` must use `...domain` when
+importing sibling domain packages; `..domain` incorrectly resolves to
+`application.domain`. Code in `infrastructure/persistence/` must use `...domain`
+for domain imports and `..mappers` only for its sibling infrastructure mapper
+package. Prefer absolute `app.modules.<module>...` imports when the relative
+depth is not immediately obvious.
+
 ### 4. Validation is mandatory at every boundary
 
 Never trust any input.

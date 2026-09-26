@@ -104,6 +104,10 @@ At the time this plan was created, the following cross-cutting concerns are cons
 |---|---|
 | Environment/configuration validation | Complete |
 | Centralized exception handling | Complete |
+| Structured logging and correlation | Complete |
+| Database session and async SQLAlchemy foundation | Complete |
+| S3 storage abstraction and upload cleanup pattern | Complete |
+| Audit job lifecycle service and processing transitions | Complete |
 
 These should be treated as existing foundations rather than rebuilt unnecessarily.
 
@@ -964,6 +968,21 @@ The developer should validate it against `AGENTS.md` and the actual evolving cod
 ---
 
 # 6. Business Module 1 — Audits / Jobs
+
+### Current implementation status
+
+The first vertical slice is implemented under `backend/app/modules/audits/`:
+
+- validated job creation from stored-file metadata
+- job status retrieval
+- paginated job listing
+- job deletion
+- multipart upload flow with storage cleanup on failure
+- job status transitions: pending -> processing -> completed/failed
+- Celery dispatch hook for audit processing tasks
+- module-local repository contract, application service, DTOs, mapper, SQLAlchemy repository, controller, docs, and tests
+
+The raw processing pipeline beyond a minimal queue-triggered status transition remains the next milestone, along with results, retry, and CSV export work. The current module is now able to progress from a created job into an actual processing lifecycle rather than stopping at metadata-only creation.
 
 ## Purpose
 
