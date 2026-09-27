@@ -1084,6 +1084,30 @@ Treat `Job` as the central aggregate/workflow entity and keep processing algorit
 
 # 7. Business Module 2 — Transactions
 
+### Current implementation status
+
+An initial transaction API/persistence slice exists under
+`backend/app/modules/transactions/`. The root-level source of truth is
+[`docs/transactions-module.md`](docs/transactions-module.md).
+
+Implemented in the current source tree:
+
+- transaction domain record and repository protocol
+- Pydantic create request and response/list DTOs
+- application service and response mapper
+- SQLAlchemy repository adapter for single-row create, get, list, delete, and a sequential repository-level bulk method
+- `POST /v1/transactions`, `GET /v1/transactions`, `GET /v1/transactions/{transaction_id}`, and `DELETE /v1/transactions/{transaction_id}` routes
+- initial in-memory API tests
+
+This module is **not complete**. In particular, transaction writes/deletes do
+not explicitly commit in the application service, module-local tests are not
+collected by the current `backend/pytest.ini` test path, no database integration
+tests establish persistence behavior, and domain enums currently come from the
+shared ORM model module. Bulk create is not exposed as an application use case or
+HTTP endpoint, and export support is not implemented. These gaps are tracked in
+[`docs/transactions-module.md`](docs/transactions-module.md) and must be resolved
+before considering the module production-ready.
+
 ## Purpose
 
 Own the normalized transaction domain.
@@ -1157,6 +1181,8 @@ The module should not know about:
 ## Best-practice recommendation
 
 Keep transaction persistence and domain behavior separate from the pipeline orchestration.
+Processing should write transactions through a module application use case or
+repository abstraction, never through SQLAlchemy models directly.
 
 ---
 
@@ -2173,12 +2199,16 @@ Before considering the core foundation complete, verify:
 
 ## Transactions
 
-- [ ] Model
-- [ ] Repository
-- [ ] Persistence
-- [ ] Retrieval
-- [ ] Bulk operations
+- [x] Model (existing shared SQLAlchemy model; domain ownership refactor remains)
+- [x] Repository contract and SQLAlchemy adapter (durable transaction behavior still needs verification)
+- [ ] Persistence commits and database integration tests
+- [x] Retrieval API (by ID and paginated/filterable list)
+- [ ] Bulk operations exposed at application boundary and verified as atomic/efficient
 - [ ] Export support
+
+See [`docs/transactions-module.md`](docs/transactions-module.md) for the module
+contract, current implementation details, known architecture gaps, and the
+recommended completion sequence.
 
 ## Processing
 
