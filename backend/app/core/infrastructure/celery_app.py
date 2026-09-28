@@ -9,7 +9,10 @@ def make_celery():
         "txn_pipeline",
         broker=settings.CELERY_BROKER_URL,
         backend=settings.CELERY_RESULT_BACKEND,
-        include=["app.core.infrastructure.tasks"],
+        include=[
+            "app.core.infrastructure.tasks",
+            "app.modules.processing.infrastructure.worker",
+        ],
     )
     return celery
 

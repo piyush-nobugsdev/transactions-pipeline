@@ -1188,6 +1188,30 @@ repository abstraction, never through SQLAlchemy models directly.
 
 # 8. Business Module 3 — Processing
 
+### Current implementation status
+
+The first Processing vertical slice is implemented under
+`backend/app/modules/processing/`. Its root-level source of truth is
+[`docs/processing-module.md`](docs/processing-module.md).
+
+Implemented:
+
+- module-owned Celery worker adapter registered with the Celery application
+- CSV header/row validation and normalization for supported date, amount,
+    currency, status, and category values
+- exact duplicate-row removal and raw/clean row counts
+- application orchestration that downloads stored content, persists normalized
+    rows through the Transactions repository contract, and updates job state
+- completion and failure handling with transaction rollback/commit boundaries
+- module-local behavior tests; pytest now discovers tests below `app/modules/`
+- job/transaction status and anomaly enums owned by their domain modules rather
+    than the shared SQLAlchemy model module
+
+This is only the cleaning-and-persistence stage. Anomaly detection, LLM work,
+summaries, results/export, idempotent retry semantics, upload row caps, and
+database-backed worker integration tests remain pending. Do not configure Celery
+retries until repeated task delivery is idempotent.
+
 ## Purpose
 
 Orchestrate the asynchronous audit pipeline.
@@ -1757,6 +1781,11 @@ Then verify the database lifecycle.
 
 # 17. Phase 5 — Data Cleaning
 
+The initial cleaner and transaction persistence handoff are implemented in the
+Processing module. This phase is partially complete; see
+[`docs/processing-module.md`](docs/processing-module.md) for the supported CSV
+contract and remaining integration work.
+
 Implement cleaning as part of the processing pipeline or as its own internal component based on the human architectural decision.
 
 Requirements from the PRD:
@@ -2199,7 +2228,7 @@ Before considering the core foundation complete, verify:
 
 ## Transactions
 
-- [x] Model (existing shared SQLAlchemy model; domain ownership refactor remains)
+- [x] Model and domain-owned transaction enums
 - [x] Repository contract and SQLAlchemy adapter (durable transaction behavior still needs verification)
 - [ ] Persistence commits and database integration tests
 - [x] Retrieval API (by ID and paginated/filterable list)
@@ -2212,11 +2241,18 @@ recommended completion sequence.
 
 ## Processing
 
-- [ ] Celery task
-- [ ] Pipeline orchestration
-- [ ] State transitions
-- [ ] Failure handling
-- [ ] Completion handling
+- [x] Celery task (module-owned task adapter registered with Celery)
+- [x] Pipeline orchestration (initial CSV clean-and-persist stage only)
+- [x] State transitions (processing, completed, failed)
+- [x] Failure handling (rollback, bounded job error, task re-raise)
+- [x] Completion handling (transaction persistence and row counts)
+- [ ] Idempotent task redelivery and retry/resume semantics
+- [ ] Database-backed worker integration tests
+- [ ] Anomaly, AI classification, and summary stages
+- [ ] Results retrieval and export integration
+
+See [`docs/processing-module.md`](docs/processing-module.md) for the implemented
+CSV contract, processing lifecycle, and remaining work.
 
 ## Anomalies
 

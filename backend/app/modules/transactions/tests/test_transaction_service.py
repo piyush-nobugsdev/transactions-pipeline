@@ -1,13 +1,13 @@
-from datetime import date
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.modules.transactions.application.services.transaction_service import TransactionService
 from app.modules.transactions.controllers.dependencies import get_transaction_service
 from app.modules.transactions.domain.entities import TransactionRecord
-from app.schemas.models import TransactionStatus
+from app.modules.transactions.domain.entities import TransactionStatus
 
 
 class InMemoryTransactionRepository:

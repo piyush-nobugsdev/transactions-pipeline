@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from app.schemas.models import AnomalyReason, TransactionStatus
+
+class TransactionStatus(str, enum.Enum):
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    PENDING = "PENDING"
+
+
+class AnomalyReason(str, enum.Enum):
+    STATISTICAL_OUTLIER = "statistical_outlier"
+    CURRENCY_MISMATCH = "currency_mismatch"
+    DUPLICATE_PAYMENT = "duplicate_payment"
 
 
 @dataclass(slots=True)

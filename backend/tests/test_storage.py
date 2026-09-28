@@ -5,7 +5,7 @@ import pytest
 from app.core.storage.interface import Storage
 from app.modules.audits.application.services.job_service import JobService
 from app.modules.audits.domain.entities import JobRecord
-from app.schemas.models import JobStatus
+from app.modules.audits.domain.entities import JobStatus
 
 
 class FakeStorage:

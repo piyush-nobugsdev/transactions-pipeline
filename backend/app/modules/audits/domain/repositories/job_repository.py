@@ -4,8 +4,6 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.schemas.models import JobStatus
-
 from ..entities import JobRecord
 
 

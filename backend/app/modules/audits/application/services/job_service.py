@@ -8,13 +8,12 @@ from app.core.exceptions import NotFoundError
 from app.core.infrastructure.celery_app import celery_app
 from app.core.logging import get_logger
 from app.core.storage.interface import Storage
-from app.schemas.models import JobStatus
 
-logger = get_logger(__name__)
-
-from ...domain.entities import JobRecord
+from ...domain.entities import JobRecord, JobStatus
 from ...domain.repositories.job_repository import JobRepository
 from ..dto.request.job_requests import CreateJobRequest
+
+logger = get_logger(__name__)
 
 
 class JobService:

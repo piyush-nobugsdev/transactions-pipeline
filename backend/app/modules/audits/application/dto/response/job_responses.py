@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.models import JobStatus
+from app.modules.audits.domain.entities import JobStatus
 
 
 class JobResponse(BaseModel):

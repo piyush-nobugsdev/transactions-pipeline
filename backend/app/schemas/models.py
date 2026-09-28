@@ -21,30 +21,13 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database.base import Base
+from app.modules.audits.domain.entities import JobStatus
+from app.modules.transactions.domain.entities import AnomalyReason, TransactionStatus
 
 
 # ============================================================
 # Enums
 # ============================================================
-
-
-class JobStatus(str, enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class TransactionStatus(str, enum.Enum):
-    SUCCESS = "SUCCESS"
-    FAILED = "FAILED"
-    PENDING = "PENDING"
-
-
-class AnomalyReason(str, enum.Enum):
-    STATISTICAL_OUTLIER = "statistical_outlier"
-    CURRENCY_MISMATCH = "currency_mismatch"
-    DUPLICATE_PAYMENT = "duplicate_payment"
 
 
 class RiskLevel(str, enum.Enum):

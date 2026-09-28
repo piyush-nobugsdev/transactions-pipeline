@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.models import AnomalyReason, TransactionStatus
+from app.modules.transactions.domain.entities import AnomalyReason, TransactionStatus
 
 
 class TransactionResponse(BaseModel):

@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schemas.models import AnomalyReason, TransactionStatus
+from app.modules.transactions.domain.entities import AnomalyReason, TransactionStatus
 
 
 class CreateTransactionRequest(BaseModel):

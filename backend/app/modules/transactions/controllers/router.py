@@ -2,8 +2,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.core.exceptions import BadRequestError
-
 from ..application.dto.request.transaction_requests import CreateTransactionRequest
 from ..application.dto.response.transaction_responses import TransactionListResponse, TransactionResponse
 from ..application.mappers.transaction_mapper import to_transaction_response

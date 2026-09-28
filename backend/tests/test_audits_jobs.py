@@ -8,7 +8,7 @@ from app.main import app
 from app.modules.audits.controllers.dependencies import get_job_service
 from app.modules.audits.domain.entities import JobRecord
 from app.modules.audits.application.services.job_service import JobService
-from app.schemas.models import JobStatus
+from app.modules.audits.domain.entities import JobStatus
 
 
 class InMemoryJobRepository:

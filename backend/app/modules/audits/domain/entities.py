@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from app.schemas.models import JobStatus
+
+class JobStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 @dataclass(slots=True)
