@@ -4,7 +4,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import AliasChoices, Field, ValidationError, model_validator
 from pydantic_settings import BaseSettings
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
         return self.AWS_SECRET_ACCESS_KEY or self.AWS_SECRET_KEY_ID or ""
 
     @model_validator(mode="after")
-    def validate_required_secrets(self) -> "Settings":
+    def validate_required_secrets(self) -> Settings:
         if not self.aws_secret_key:
             raise ValueError("AWS secret key is required. Set AWS_SECRET_ACCESS_KEY or AWS_SECRET_KEY_ID.")
         return self
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
         return redacted
 
 
-_INSTANCE: Optional[Settings] = None
+_INSTANCE: Settings | None = None
 
 
 def get_settings() -> Settings:

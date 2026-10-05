@@ -7,13 +7,13 @@ from decimal import Decimal
 from uuid import UUID
 
 
-class TransactionStatus(str, enum.Enum):
+class TransactionStatus(enum.StrEnum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
     PENDING = "PENDING"
 
 
-class AnomalyReason(str, enum.Enum):
+class AnomalyReason(enum.StrEnum):
     STATISTICAL_OUTLIER = "statistical_outlier"
     CURRENCY_MISMATCH = "currency_mismatch"
     DUPLICATE_PAYMENT = "duplicate_payment"

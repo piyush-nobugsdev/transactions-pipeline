@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError
 from app.schemas.models import Job
 
-from ..mappers.job_mapper import to_domain
 from ...domain.entities import JobRecord, JobStatus
+from ..mappers.job_mapper import to_domain
 
 
 class SqlAlchemyJobRepository:

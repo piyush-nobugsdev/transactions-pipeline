@@ -6,7 +6,7 @@ from datetime import datetime
 from uuid import UUID
 
 
-class JobStatus(str, enum.Enum):
+class JobStatus(enum.StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"

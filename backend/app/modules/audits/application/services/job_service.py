@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from app.core.exceptions import NotFoundError
@@ -58,7 +58,7 @@ class JobService:
             s3_key=key,
             file_size_bytes=len(content),
             content_type=content_type,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=retention_days or self.retention_days),
+            expires_at=datetime.now(UTC) + timedelta(days=retention_days or self.retention_days),
         )
         try:
             job = await self.create_job(request)
@@ -103,7 +103,7 @@ class JobService:
             status=JobStatus.COMPLETED,
             row_count_raw=row_count_raw,
             row_count_clean=row_count_clean,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             error_message=None,
         )
         if job is None:
@@ -115,7 +115,7 @@ class JobService:
         job = await self.repository.update(
             job_id,
             status=JobStatus.FAILED,
-            completed_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(UTC),
             error_message=error_message,
         )
         if job is None:

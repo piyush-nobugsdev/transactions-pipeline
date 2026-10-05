@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import contextvars
 import time
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterator, Mapping
 
 
 @dataclass(slots=True)

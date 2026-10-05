@@ -4,13 +4,13 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     DateTime,
     Enum,
     ForeignKey,
     Integer,
-    JSON,
     Numeric,
     String,
     Text,
@@ -24,13 +24,12 @@ from app.core.database.base import Base
 from app.modules.audits.domain.entities import JobStatus
 from app.modules.transactions.domain.entities import AnomalyReason, TransactionStatus
 
-
 # ============================================================
 # Enums
 # ============================================================
 
 
-class RiskLevel(str, enum.Enum):
+class RiskLevel(enum.StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"

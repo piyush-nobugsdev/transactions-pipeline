@@ -6,8 +6,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.modules.transactions.application.services.transaction_service import TransactionService
 from app.modules.transactions.controllers.dependencies import get_transaction_service
-from app.modules.transactions.domain.entities import TransactionRecord
-from app.modules.transactions.domain.entities import TransactionStatus
+from app.modules.transactions.domain.entities import TransactionRecord, TransactionStatus
 
 
 class InMemoryTransactionRepository:
@@ -45,7 +44,13 @@ class InMemoryTransactionRepository:
     async def get(self, transaction_id: UUID) -> TransactionRecord | None:
         return self.transactions.get(transaction_id)
 
-    async def list(self, *, job_id: UUID | None = None, offset: int = 0, limit: int = 50) -> list[TransactionRecord]:
+    async def list(
+        self,
+        *,
+        job_id: UUID | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> list[TransactionRecord]:
         values = list(self.transactions.values())
         if job_id is not None:
             values = [item for item in values if item.job_id == job_id]
@@ -150,7 +155,13 @@ async def test_transaction_service_commits_after_write():
         async def get(self, transaction_id: UUID) -> TransactionRecord | None:
             return None
 
-        async def list(self, *, job_id: UUID | None = None, offset: int = 0, limit: int = 50) -> list[TransactionRecord]:
+        async def list(
+            self,
+            *,
+            job_id: UUID | None = None,
+            offset: int = 0,
+            limit: int = 50,
+        ) -> list[TransactionRecord]:
             return []
 
         async def delete(self, transaction_id: UUID) -> bool:

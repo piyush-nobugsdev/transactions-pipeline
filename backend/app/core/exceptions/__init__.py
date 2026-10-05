@@ -24,9 +24,9 @@ __all__ = [
     "ForbiddenError",
     "InternalServerError",
     "NotFoundError",
-    "register_exception_handlers",
     "ServiceUnavailableError",
     "TooManyRequestsError",
     "UnauthorizedError",
     "ValidationErrorDetail",
+    "register_exception_handlers",
 ]

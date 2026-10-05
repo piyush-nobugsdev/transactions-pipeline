@@ -26,7 +26,13 @@ class TransactionService:
             raise NotFoundError("transaction")
         return transaction
 
-    async def list_transactions(self, *, job_id: UUID | None = None, offset: int = 0, limit: int = 50) -> list[TransactionRecord]:
+    async def list_transactions(
+        self,
+        *,
+        job_id: UUID | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> list[TransactionRecord]:
         return await self.repository.list(job_id=job_id, offset=offset, limit=limit)
 
     async def delete_transaction(self, transaction_id: UUID) -> None:

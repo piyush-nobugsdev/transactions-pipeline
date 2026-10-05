@@ -1,14 +1,13 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.modules.audits.controllers.dependencies import get_job_service
-from app.modules.audits.domain.entities import JobRecord
 from app.modules.audits.application.services.job_service import JobService
-from app.modules.audits.domain.entities import JobStatus
+from app.modules.audits.controllers.dependencies import get_job_service
+from app.modules.audits.domain.entities import JobRecord, JobStatus
 
 
 class InMemoryJobRepository:
@@ -28,7 +27,7 @@ class InMemoryJobRepository:
             content_type=data["content_type"],
             row_count_raw=0,
             row_count_clean=0,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             completed_at=None,
             expires_at=data["expires_at"],
             error_message=None,
@@ -159,7 +158,10 @@ async def test_job_service_marks_failed_when_dispatch_fails(monkeypatch):
     def raise_dispatch_error(*args, **kwargs):
         raise RuntimeError("queue unavailable")
 
-    monkeypatch.setattr("app.modules.audits.application.services.job_service.celery_app.send_task", raise_dispatch_error)
+    monkeypatch.setattr(
+        "app.modules.audits.application.services.job_service.celery_app.send_task",
+        raise_dispatch_error,
+    )
 
     with pytest.raises(RuntimeError, match="queue unavailable"):
         await service.dispatch_processing(created.id)

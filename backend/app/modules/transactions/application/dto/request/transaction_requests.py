@@ -15,7 +15,7 @@ class CreateTransactionRequest(BaseModel):
     txn_id: str | None = Field(default=None, max_length=255)
     date: date
     merchant: str = Field(min_length=1, max_length=500)
-    amount: Decimal = Field(gt=Decimal("0"))
+    amount: Decimal = Field(gt=0)
     currency: str = Field(min_length=3, max_length=3)
     status: TransactionStatus = TransactionStatus.PENDING
     category: str = Field(default="Uncategorised", min_length=1, max_length=255)

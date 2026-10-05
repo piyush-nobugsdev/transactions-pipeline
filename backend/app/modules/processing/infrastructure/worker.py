@@ -8,10 +8,10 @@ from app.core.infrastructure.celery_app import celery_app
 from app.core.logging import get_logger, set_correlation_context
 from app.core.storage.dependencies import get_storage
 from app.modules.audits.infrastructure.persistence.sqlalchemy_job_repository import SqlAlchemyJobRepository
+from app.modules.processing.application.services.processing_service import ProcessingService
 from app.modules.transactions.infrastructure.persistence.sqlalchemy_transaction_repository import (
     SqlAlchemyTransactionRepository,
 )
-from app.modules.processing.application.services.processing_service import ProcessingService
 
 logger = get_logger(__name__)
 

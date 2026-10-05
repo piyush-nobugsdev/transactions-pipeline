@@ -1,12 +1,11 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
 import pytest
 
-from app.modules.audits.domain.entities import JobRecord
+from app.modules.audits.domain.entities import JobRecord, JobStatus
 from app.modules.processing.application.services.processing_service import ProcessingService
-from app.modules.audits.domain.entities import JobStatus
 
 
 class FakeStorage:
@@ -31,9 +30,9 @@ class FakeJobRepository:
             content_type="text/csv",
             row_count_raw=0,
             row_count_clean=0,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             completed_at=None,
-            expires_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(UTC),
             error_message=None,
         )
         self.updates: list[dict[str, object]] = []

@@ -13,6 +13,12 @@ class TransactionRepository(Protocol):
 
     async def get(self, transaction_id: UUID) -> TransactionRecord | None: ...
 
-    async def list(self, *, job_id: UUID | None = None, offset: int = 0, limit: int = 50) -> list[TransactionRecord]: ...
+    async def list(
+        self,
+        *,
+        job_id: UUID | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> list[TransactionRecord]: ...
 
     async def delete(self, transaction_id: UUID) -> bool: ...

@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
 from app.core.storage.interface import Storage
+from app.modules.audits.domain.entities import JobStatus
 from app.modules.audits.domain.repositories.job_repository import JobRepository
 from app.modules.transactions.domain.repositories.transaction_repository import TransactionRepository
-from app.modules.audits.domain.entities import JobStatus
 
 from ...domain.services.csv_cleaner import clean_transactions
 
@@ -66,7 +66,7 @@ class ProcessingService:
                 status=JobStatus.COMPLETED,
                 row_count_raw=row_count_raw,
                 row_count_clean=len(records),
-                completed_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(UTC),
                 error_message=None,
             )
             await self.unit_of_work.commit()
@@ -81,7 +81,7 @@ class ProcessingService:
             await self.job_repository.update(
                 job_id,
                 status=JobStatus.FAILED,
-                completed_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(UTC),
                 error_message=error_message[:2000],
             )
             await self.unit_of_work.commit()

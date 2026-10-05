@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
@@ -107,7 +107,7 @@ def clean_transactions(content: bytes, *, job_id: UUID) -> tuple[int, list[dict[
 def _parse_date(value: str) -> date:
     for date_format in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d"):
         try:
-            return datetime.strptime(value, date_format).date()
+            return datetime.strptime(value, date_format).replace(tzinfo=UTC).date()
         except ValueError:
             continue
     raise ValueError("unsupported date format")

@@ -4,8 +4,9 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
-from typing import Any, Mapping, TextIO
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any, TextIO
 
 from app.core.config import get_settings
 from app.core.logging.context import build_log_context
@@ -39,7 +40,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "level": record.levelname,
             "message": record.getMessage(),
         }
@@ -73,12 +74,23 @@ class JsonFormatter(logging.Formatter):
     def _sanitize_payload(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         sanitized: dict[str, Any] = {}
         for key, value in payload.items():
-            if key in {"authorization", "api_key", "password", "token", "access_token", "secret"}:
+            is_sensitive_key = key in {
+                "authorization",
+                "api_key",
+                "password",
+                "token",
+                "access_token",
+                "secret",
+            }
+            is_bearer_token = isinstance(value, str) and value.startswith("Bearer ")
+            if is_sensitive_key or is_bearer_token:
                 sanitized[key] = "<redacted>"
-            elif isinstance(value, str) and value.startswith("Bearer "):
-                sanitized[key] = "<redacted>"
-            elif isinstance(value, (dict, list)):
-                sanitized[key] = self._sanitize_payload(value) if isinstance(value, dict) else [self._sanitize_payload(v) if isinstance(v, dict) else v for v in value]
+            elif isinstance(value, dict):
+                sanitized[key] = self._sanitize_payload(value)
+            elif isinstance(value, list):
+                sanitized[key] = [
+                    self._sanitize_payload(v) if isinstance(v, dict) else v for v in value
+                ]
             else:
                 sanitized[key] = value
         return sanitized
