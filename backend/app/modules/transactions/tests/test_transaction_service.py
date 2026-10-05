@@ -110,3 +110,66 @@ def test_delete_transaction_removes_record(client, payload):
 
     assert delete_response.status_code == 204
     assert lookup_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_transaction_service_commits_after_write():
+    class CommitTrackingSession:
+        def __init__(self) -> None:
+            self.commit_calls = 0
+
+        async def commit(self) -> None:
+            self.commit_calls += 1
+
+    class CommitTrackingRepository:
+        def __init__(self) -> None:
+            self.session = CommitTrackingSession()
+            self.created: list[dict[str, object]] = []
+
+        async def create(self, **data) -> TransactionRecord:
+            self.created.append(data)
+            return TransactionRecord(
+                id=uuid4(),
+                job_id=data["job_id"],
+                txn_id=data.get("txn_id"),
+                date=data["date"],
+                merchant=data["merchant"],
+                amount=data["amount"],
+                currency=data["currency"],
+                status=data.get("status", TransactionStatus.PENDING),
+                category=data.get("category") or "Uncategorised",
+                account_id=data["account_id"],
+                is_anomaly=data.get("is_anomaly", False),
+                anomaly_reason=data.get("anomaly_reason"),
+                duplicate_of_txn_id=data.get("duplicate_of_txn_id"),
+                llm_category=data.get("llm_category"),
+                llm_raw_response=data.get("llm_raw_response"),
+                llm_failed=data.get("llm_failed", False),
+            )
+
+        async def get(self, transaction_id: UUID) -> TransactionRecord | None:
+            return None
+
+        async def list(self, *, job_id: UUID | None = None, offset: int = 0, limit: int = 50) -> list[TransactionRecord]:
+            return []
+
+        async def delete(self, transaction_id: UUID) -> bool:
+            return True
+
+    repo = CommitTrackingRepository()
+    service = TransactionService(repo)
+    request = {
+        "job_id": str(uuid4()),
+        "txn_id": "txn-commit-check",
+        "date": "2026-03-01",
+        "merchant": "Amazon",
+        "amount": "42.50",
+        "currency": "USD",
+        "status": "PENDING",
+        "category": "Office Supplies",
+        "account_id": "acct-001",
+    }
+
+    await service.create_transaction(type("Req", (), {"model_dump": lambda self: request})())
+
+    assert repo.session.commit_calls == 1

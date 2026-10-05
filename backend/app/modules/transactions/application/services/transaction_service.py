@@ -17,6 +17,7 @@ class TransactionService:
         payload = request.model_dump()
         payload["job_id"] = UUID(str(payload["job_id"]))
         transaction = await self.repository.create(**payload)
+        await self._commit()
         return transaction
 
     async def get_transaction(self, transaction_id: UUID) -> TransactionRecord:
@@ -31,3 +32,9 @@ class TransactionService:
     async def delete_transaction(self, transaction_id: UUID) -> None:
         if not await self.repository.delete(transaction_id):
             raise NotFoundError("transaction")
+        await self._commit()
+
+    async def _commit(self) -> None:
+        session = getattr(self.repository, "session", None)
+        if session is not None:
+            await session.commit()

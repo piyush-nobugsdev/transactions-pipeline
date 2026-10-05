@@ -91,7 +91,8 @@ This is row deduplication only; near-duplicate payment detection belongs to the 
 4. Validate and clean CSV rows.
 5. Persist all normalized rows through `TransactionRepository.bulk_create` in the current unit of work.
 6. Set status to `completed`, store raw/clean row counts and completion timestamp, and commit transaction rows and job completion together.
-7. On processing error, roll back uncommitted transaction data, mark the job `failed` with a safe bounded message, commit that state, and re-raise the original exception so Celery records task failure.
+7. If Celery enqueueing fails before the worker starts, `JobService.dispatch_processing` marks the job `failed` and re-raises so the API caller sees the dispatch failure instead of a hung `processing` job.
+8. On processing error, roll back uncommitted transaction data, mark the job `failed` with a safe bounded message, commit that state, and re-raise the original exception so Celery records task failure.
 
 The processing session commits the initial `processing` state separately. Transaction persistence and final completion state share the subsequent session transaction. A redelivered task is not yet idempotent: existing transactions are not cleared/replaced, so retries may duplicate data. Do not enable automatic retries until this behavior is resolved.
 

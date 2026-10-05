@@ -8,6 +8,7 @@ the canonical reference for adding, changing, and debugging environment variable
 
 - Fail fast at CI or startup when required configuration is missing or invalid.
 - Provide a single `Settings` model for the backend so all code reads one source.
+- Redact secrets before writing settings to logs or stdout.
 - Make it easy for developers to discover required variables and example values.
 
 ## High-level flow
@@ -33,11 +34,19 @@ The core is a single `Settings` class built on `pydantic-settings.BaseSettings`.
 instantiated it reads environment variables (and `.env` file when present) and
 validates types and constraints.
 
+Current behavior:
+
+- `main_check()` prints a redacted settings snapshot instead of dumping raw secrets.
+- `AWS_SECRET_ACCESS_KEY` is the canonical secret name, while the legacy
+  `AWS_SECRET_KEY_ID` name is accepted as an alias for compatibility during the
+  migration.
+- `get_settings()` returns a cached `Settings` instance so the app doesn't re-parse env repeatedly.
+
 Key helpers:
 
 - `get_settings()` — returns a cached `Settings` instance so the app doesn't re-parse env repeatedly.
-- `main_check()` — small CLI entrypoint that instantiates `Settings` and prints
-  the model on success or exits with non-zero on `ValidationError`.
+- `main_check()` — small CLI entrypoint that instantiates `Settings`, redacts secrets,
+  and prints the result on success or exits with non-zero on `ValidationError`.
 
 Example snippet (from `backend/app/core/config/__init__.py`):
 
@@ -124,8 +133,8 @@ Common issues
 
 - `.env.example` must never contain real secrets. Use GitHub Secrets to inject real
   values into CI if needed.
-- The env-check CLI will validate presence/format of secrets but will not print
-  secret values in logs (avoid placing secrets in printed output).
+- The env-check CLI validates presence/format of secrets and redacts them before
+  printing. Do not emit raw database URLs or access secrets to the terminal.
 
 ## Where to look next
 

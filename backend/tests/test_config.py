@@ -1,6 +1,6 @@
 
 
-from app.core.config import Settings, settings
+from app.core.config import Settings, main_check, settings
 
 
 def test_settings_reads_env(monkeypatch):
@@ -16,3 +16,22 @@ def test_settings_reads_env(monkeypatch):
 def test_settings_module_exports_settings():
     assert settings is not None
     assert hasattr(settings, "DATABASE_URL")
+
+
+def test_main_check_redacts_secrets(monkeypatch, capsys):
+    monkeypatch.setenv("POSTGRES_USER", "txn_user")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "super-secret-password")
+    monkeypatch.setenv("POSTGRES_DB", "txn_pipeline")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://txn_user:super-secret-password@localhost:5432/txn_pipeline")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "aws-access-key")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-secret-value")
+    monkeypatch.setenv("S3_BUCKET_NAME", "test-bucket")
+    monkeypatch.setenv("S3_REGION", "us-east-1")
+
+    exit_code = main_check()
+    captured = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "super-secret-password" not in captured
+    assert "aws-secret-value" not in captured
+    assert "***" in captured

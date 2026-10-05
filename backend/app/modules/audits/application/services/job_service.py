@@ -62,17 +62,26 @@ class JobService:
         )
         try:
             job = await self.create_job(request)
-            return await self.dispatch_processing(job.id)
         except Exception:
             await self.storage.delete(key=key)
             raise
+
+        try:
+            return await self.dispatch_processing(job.id)
+        except Exception:
+            return await self.fail_processing(job.id, error_message="Failed to dispatch audit job to Celery.")
 
     async def dispatch_processing(self, job_id: UUID) -> JobRecord:
         job = await self.mark_processing(job_id)
         try:
             celery_app.send_task("app.core.infrastructure.tasks.process_audit_job", args=[str(job_id)])
         except Exception:
-            logger.warning("audit job dispatch skipped because Celery is unavailable", extra={"job_id": str(job_id)})
+            logger.exception(
+                "audit job dispatch failed",
+                extra={"event": "dispatch_failed", "job_id": str(job_id)},
+            )
+            await self.fail_processing(job_id, error_message="Failed to dispatch audit job to Celery.")
+            raise
         return job
 
     async def mark_processing(self, job_id: UUID) -> JobRecord:

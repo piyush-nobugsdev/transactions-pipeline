@@ -17,11 +17,13 @@ central business record for one future expense-audit workflow.
 
 The current implementation creates and manages pending jobs from metadata or from
 multipart file content. Uploaded content is stored through the core storage
-abstraction and the job records the resulting object location. It does not yet
-enqueue processing, store transactions, produce results, or export CSV files.
+abstraction and the job records the resulting object location. The app now
+attempts to enqueue the processing task once the job is marked as `processing`.
+If that dispatch fails, the job is marked `failed` and the exception is re-raised
+instead of leaving a hidden stuck state.
 
-Those capabilities are intentionally deferred until their infrastructure and
-business boundaries are implemented.
+The raw processing pipeline beyond cleaning and persistence remains the next major
+milestone. Results, retry, CSV export, and AI classification are still deferred.
 
 ## Current Scope
 
@@ -38,19 +40,15 @@ Implemented:
 
 Not implemented in this module:
 
-- multipart CSV upload to the configured S3 bucket
-- file content validation or CSV parsing
-- S3 download, existence checks, and deletion primitives
-- Celery task dispatch
-- processing state transitions beyond initial `pending`
-- transaction results
-- anomaly results
-- LLM classification or narrative summaries
-- retrying failed jobs
-- result retrieval
-- CSV export
-- retention cleanup
+- CSV parsing and row-level validation logic beyond the stored file metadata
+- S3 download, existence checks, and deletion primitives in the job lifecycle contract
+- result retrieval and summary persistence for completed jobs
+- anomaly results and LLM classification or narrative summaries
+- retrying failed jobs and dead-letter handling
+- CSV export and retention cleanup automation
 - authentication, authorization, and tenant isolation
+
+The module currently does support upload metadata creation and jobs that are moved to `processing` and then `failed` or `completed` by the pipeline once the Celery worker runs.
 
 ## Architecture
 

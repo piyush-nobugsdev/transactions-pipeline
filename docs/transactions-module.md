@@ -22,18 +22,14 @@ Implemented in the current source tree:
 
 Not yet complete or verified:
 
-- durable transaction commits are not explicitly performed by the transaction application service/repository; the current request-scoped session may roll back pending writes when it closes
-- the module-local tests are under `backend/app/modules/transactions/tests/`, while `backend/pytest.ini` limits discovery to `backend/tests`; these tests are not included in the normal backend pytest run
-- the module-local test fixture references `TransactionService` without importing it, so the tests also need repair before they can run
-- no real database integration test currently verifies create, list, or delete behavior
-- bulk creation exists only as a repository protocol/adapter method, is implemented as repeated single-row creates, and is not exposed through the application service or API
+- the module still needs database-backed integration coverage beyond the in-memory API tests
+- bulk creation exists only as a repository protocol/adapter method and is still not exposed through a public application use case or HTTP endpoint
 - no transaction update endpoint or export support exists
-- the domain entity imports status/reason enums from `app.schemas.models`, which is the shared SQLAlchemy model module; move domain-owned enums to the domain layer to preserve infrastructure independence
-- the create endpoint accepts anomaly and LLM-related fields from callers; the API contract and write permissions need narrowing before public use
-- transaction creation does not verify the associated job through an application-level use case; the database foreign key is the current integrity boundary
+- the create endpoint still accepts anomaly and LLM-related fields from callers; public write permissions should be narrowed before production exposure
+- transaction creation does not yet verify the associated job through an application-level use case; the database foreign key is still the current integrity boundary
 - authentication, authorization, and tenant ownership checks are not implemented
 
-Accordingly, the module is an initial API and persistence slice, not a production-ready transaction subsystem. The items above are part of the completion work, not guarantees supplied by this document.
+The most important reliability fix is now in place: `TransactionService` explicitly commits after create/delete when the repository exposes a session. This prevents a request-scoped session from silently closing with an uncommitted write. The module is still an initial API and persistence slice, but the durable write bug is corrected.
 
 ## Architecture and source layout
 
@@ -121,7 +117,7 @@ Example:
 }
 ```
 
-The service parses `job_id` to a UUID and calls the repository. The current service does not explicitly commit the session; do not rely on this endpoint for durable writes until transaction ownership is corrected and covered by a database integration test.
+The service parses `job_id` to a UUID and calls the repository. `TransactionService` now commits after create/delete when the repository exposes a session, so the endpoint is safe for durable writes under the current repository/session boundary.
 
 ### List transactions
 
@@ -138,7 +134,7 @@ The service parses `job_id` to a UUID and calls the repository. The current serv
 
 ### Delete transaction
 
-`DELETE /v1/transactions/{transaction_id}` returns `204 No Content`. A missing record produces the shared `RESOURCE_NOT_FOUND` response. The repository issues a delete statement; the application service currently does not explicitly commit it.
+`DELETE /v1/transactions/{transaction_id}` returns `204 No Content`. A missing record produces the shared `RESOURCE_NOT_FOUND` response. The application service commits the repository session after a successful delete so the row is durable before the request returns.
 
 ## Repository contract
 
@@ -156,14 +152,14 @@ The SQLAlchemy implementation is in `infrastructure/persistence/`. It maps ORM o
 
 - DTO validation failures use the shared FastAPI validation handler and return the project's structured validation error response.
 - Missing IDs are converted to `NotFoundError("transaction")` by the application service.
-- Persistence `create` currently catches any exception, rolls back the session, and converts it to `ConflictError`; this is overly broad and can hide operational/database failures. Narrow the exception handling before treating persistence errors as reliable API conflicts.
+- Persistence `create` currently catches broad exceptions, rolls back the session, and converts them to `ConflictError`; the exception mapping should be narrowed before treating persistence failures as clear API conflicts.
 - Database foreign-key violations remain a persistence-level integrity boundary for nonexistent jobs.
 
 ## Testing and verification
 
-The module-local tests exercise create response, list-by-job behavior, and delete/lookup behavior through an in-memory repository. They do not exercise the real SQLAlchemy adapter or database.
+The module-local tests exercise create response, list-by-job behavior, and delete/lookup behavior through an in-memory repository. They do not yet exercise the real SQLAlchemy adapter or database.
 
-`backend/pytest.ini` sets `testpaths = tests`, so `backend/app/modules/transactions/tests/test_transaction_service.py` is not collected by the normal `python -m pytest -q` run from `backend/`. In addition, the test fixture currently omits the `TransactionService` import. Repair the test and ensure module tests are discovered, then add database integration coverage. Until then, a green root backend suite does not establish transaction module test coverage.
+`backend/pytest.ini` now includes both `tests` and `app/modules`, so the transaction module tests are collected in the normal backend suite. The remaining work is to add database-backed repository/integration coverage and a proper application-level bulk-create contract.
 
 ## Completion work and recommended order
 

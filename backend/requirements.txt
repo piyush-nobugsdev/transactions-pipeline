@@ -10,4 +10,5 @@ httpx
 alembic
 asyncpg
 boto3
+greenlet
 python-multipart

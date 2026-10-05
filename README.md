@@ -4,8 +4,11 @@ AI-powered transaction processing pipeline: CSV upload → async Celery
 processing → data cleaning → anomaly detection → LLM batch classification →
 LLM narrative summary → polling API for results.
 
-> **Status:** Backend foundation plus the first audits/jobs API slice. CSV upload,
-> S3 storage, processing, and results are still under construction.
+> **Status:** Backend foundation, job metadata APIs, and the first CSV processing
+> slice are in place. Upload, storage, processing dispatch, and job state
+> transitions work end-to-end in the current backend implementation; anomaly
+> detection, AI classification, summary generation, export, metrics, and retention
+> are still pending.
 
 ---
 

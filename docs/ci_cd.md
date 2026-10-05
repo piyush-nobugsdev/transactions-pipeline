@@ -1,230 +1,113 @@
 # CI/CD Engineering Guide
 
-> **Transaction Pipeline** --- Continuous Integration handbook and
-> single source of truth.
+This document reflects the current repository reality. The project still includes
+working Python tests, a working Docker compose definition, and environment
+validation that runs before runtime. The primary implementation focus remains the
+backend feature pipeline, not a fully matured upstream CI platform.
 
-## Purpose
+## Current repository status
 
-This document explains how the CI pipeline works, why each step exists,
-lessons learned while building it, and guidelines for safely expanding
-it.
+The project currently supports:
 
-------------------------------------------------------------------------
+- Python backend validation through `python -m app.core.config`
+- local Docker orchestration with PostgreSQL, Redis, API, and worker services
+- backend pytest runs from the `backend` folder
+- linting via Ruff in the normal development workflow
 
-# Pipeline Overview
+The repo is not yet at the point where a complete end-to-end production pipeline
+is enforced in CI, but the foundations for validation and service startup are in
+place.
 
-        Env Validation (fail-fast)
-        │
-        ▼
-``` text
-Developer Push / PR
-        │
-        ▼
-Checkout Repository
-        │
-        ▼
-Setup Python
-        │
-        ▼
-Install Dependencies
-        │
-        ▼
-Run Ruff
-        │
-        ▼
-Run Unit Tests
-        │
-        ▼
-Create .env
-        │
-        ▼
-Validate Docker Compose
-        │
-        ▼
-Build Docker Images
-        ▼
-Start Services
-        │
-        ▼
-Wait for API Health
-        │
-        ▼
+## Recommended CI flow
 
-## Env Validation
+1. Checkout repository
+2. Set up Python
+3. Install dependencies
+4. Run environment validation
+5. Run linting and unit tests
+6. Create a local `.env` from the repository template if required by the job
+7. Validate `docker-compose.yml`
+8. Build Docker images
+9. Start services
+10. Wait for health checks
+11. Run focused integration checks when the service stack is running
+12. Always tear down the stack in cleanup
 
-After dependencies are installed CI should run the project's environment
-validation to fail early when required configuration is missing or invalid.
+## Environment validation
 
-Implementation:
+The backend config layer is the single source of truth for runtime env values.
+The command below should be treated as a required gate before the app is started:
 
-- The backend exposes a minimal CLI via `app.core.config` that instantiates
-  the `Settings` model and exits non-zero on `ValidationError`.
-- CI runs `python -m app.core.config` (from the `backend` working directory)
-  immediately after dependency installation. If this step fails the pipeline
-  stops and the failure logs include pydantic's validation errors.
-
-Why:
-
-- Prevents building images or starting services when essential env values are
-  absent or malformed.
-- Keeps failures early and the debugging flow simple.
-        ▼
-docker compose down (always)
+```bash
+cd backend
+python -m app.core.config
 ```
 
-------------------------------------------------------------------------
+This validates required fields and exits non-zero if configuration is missing or
+invalid. It also redacts secrets before printing any config snapshot.
 
-# Current Repository Layout
+## Testing expectations
 
-``` text
-txn-pipeline/
-│
-├── .github/workflows/backend-ci.yml
-├── docker-compose.yml
-├── .env.example
-├── api/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── app/
-│   └── tests/
-└── docs/
+The repo currently has a good set of backend tests under:
+
+- `backend/tests/`
+- `backend/app/modules/processing/tests/`
+- `backend/app/modules/transactions/tests/`
+- module-specific audit tests in the same backend tree
+
+The recommended default local command is:
+
+```bash
+cd backend
+python -m pytest -q
 ```
 
-------------------------------------------------------------------------
+For a focused validation pass before a merge, use the module-level tests most
+relevant to the changed behavior and then run the full backend suite as the final
+check.
 
-# Workflow Philosophy
+## Docker and stack validation
 
-The workflow verifies the project in increasing levels of confidence.
+The compose file is the source of truth for the local development stack. It should
+be validated before starting the backend in a CI environment:
 
-1.  Static correctness (linting)
-2.  Python correctness (unit tests)
-3.  Docker correctness
-4.  Service startup
-5.  Service communication
-6.  End-to-end behaviour
-
-Failures should occur as early as possible.
-
-------------------------------------------------------------------------
-
-# Step-by-Step Explanation
-
-## Checkout
-
-Downloads repository contents.
-
-## Setup Python
-
-Installs the required Python version.
-
-## Install Dependencies
-
-Installs everything required to lint and execute tests.
-
-Recommendation:
-
--   Runtime packages → `requirements.txt`
--   Test/dev packages → `requirements-dev.txt`
-
-## Ruff
-
-Checks formatting and code quality.
-
-## Unit Tests
-
-Fast tests with no external infrastructure.
-
-They should not require Docker.
-
-## Create `.env`
-
-The repository never stores secrets.
-
-CI creates `.env` from `.env.example` and injects secrets if needed.
-
-## Docker Compose Validation
-
-Ensures compose syntax is valid before building.
-
-## Docker Build
-
-Builds production images.
-
-CI should test the image itself.
-
-## Start Services
-
-Starts:
-
--   PostgreSQL
--   Redis
--   API
--   Celery Worker
-
-## Wait for API
-
-Never assume the API is immediately available.
-
-Wait until `/health` returns HTTP 200.
-
-## Integration Tests
-
-Run against the running API.
-
-Use real HTTP requests (`httpx`) instead of `TestClient`.
-
-This validates:
-
--   FastAPI
--   Redis
--   Celery
--   Worker
--   Result backend
-
-## Cleanup
-
-Always execute:
-
-``` bash
-docker compose down
+```bash
+docker compose config --quiet
 ```
 
-using `if: always()`.
+This catches invalid compose syntax and broken env references before the build
+step.
 
-------------------------------------------------------------------------
+## Operational guidance
 
-# Environment Variables
+- Keep secrets out of repo files and commit templates.
+- Validate config early so missing env values fail the pipeline fast.
+- Use a dedicated job for backend tests rather than relying on a partial smoke run.
+- Keep Docker verification and backend pytest separate so failures are easier to isolate.
+- Re-run the full backend suite after any change to job state, transaction writes,
+  config security, or queue dispatch behavior.
 
-Rules:
+## Current gaps
 
--   `.env` is never committed.
--   `.env.example` contains placeholders only.
--   Secrets belong in GitHub Secrets.
--   CI generates `.env`.
+The project still needs additional hardening for production-grade CI, especially:
 
-------------------------------------------------------------------------
+- broader end-to-end coverage against the live stack
+- explicit test coverage for background worker retries and idempotency
+- integration tests for S3 and database-backed flows
+- full policy alignment between docs and runtime behavior as the pipeline evolves
 
-# Unit vs Integration Tests
+These gaps are known and should be treated as follow-up work, not as a reason to
+ignore the existing validation gates that are already in place.
 
-## Unit
-
--   Fast
--   No Docker
--   No Redis
--   No Postgres
-
-## Integration
-
-Require running services.
-
-Communicate with the API over HTTP.
 
 ## Tests and current CI configuration
 
-- Current repo configuration: the main CI workflow does not run unit or
-        integration tests by default (these steps were removed from the primary
-        CI job to speed the main pipeline). Tests may be re-enabled or moved to
-        separate jobs (recommended) that run less frequently or on merge-to-main.
+- Current repo configuration: the main CI workflow validates the environment,
+  runs linting, verifies Docker compose, and builds the stack, but does not
+  currently execute the backend pytest suite in the primary job. The repo still
+  contains a working unit-test suite, and the first recommended follow-up is to
+  re-enable it in a dedicated CI job for PR feedback while keeping Docker build
+  validation in place.
 
 - About `backend/tests/test_config.py`:
         - Type: Unit test (no Docker required). It verifies that the `Settings`

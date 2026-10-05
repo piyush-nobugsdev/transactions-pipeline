@@ -147,3 +147,24 @@ async def test_job_service_marks_processing_and_completion():
     assert completed.row_count_raw == 120
     assert completed.row_count_clean == 104
     assert completed.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_job_service_marks_failed_when_dispatch_fails(monkeypatch):
+    # Verifies a Celery dispatch failure leaves the job in a failed state instead of a stuck processing state.
+    repository = InMemoryJobRepository()
+    service = JobService(repository)
+    created = await repository.create(**job_payload())
+
+    def raise_dispatch_error(*args, **kwargs):
+        raise RuntimeError("queue unavailable")
+
+    monkeypatch.setattr("app.modules.audits.application.services.job_service.celery_app.send_task", raise_dispatch_error)
+
+    with pytest.raises(RuntimeError, match="queue unavailable"):
+        await service.dispatch_processing(created.id)
+
+    updated = await repository.get(created.id)
+    assert updated is not None
+    assert updated.status == JobStatus.FAILED
+    assert updated.error_message is not None
