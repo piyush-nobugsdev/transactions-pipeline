@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.exceptions import register_exception_handlers
 from app.core.infrastructure.celery_app import celery_app
@@ -13,6 +14,13 @@ logger = get_logger(__name__)
 def create_app() -> FastAPI:
     configure_logging(force=True)
     app = FastAPI(title="Transaction Pipeline API (backend)")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     register_exception_handlers(app)
     app.include_router(audits_router)
     app.include_router(transactions_router)
