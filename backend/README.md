@@ -20,6 +20,9 @@ backend/
 
 ## Notes
 
+- Docker Compose runs `alembic upgrade head` in a one-shot migration service
+  before starting the API or worker. Database schema changes should be added
+  as Alembic revisions under `migrations/versions/`.
 - Keep API routes thin and focused on transport concerns.
 - Put business rules in domain services.
 - Keep persistence and external integrations behind the infrastructure layer.

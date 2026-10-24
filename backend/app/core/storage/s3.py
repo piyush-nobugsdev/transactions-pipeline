@@ -7,6 +7,9 @@ import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.core.exceptions import ServiceUnavailableError
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class S3Storage:
@@ -55,7 +58,21 @@ class S3Storage:
         try:
             return await asyncio.to_thread(operation, **kwargs)
         except ClientError as exc:
-            error_code = exc.response.get("Error", {}).get("Code")
+            error = exc.response.get("Error", {})
+            error_code = error.get("Code")
+            metadata = exc.response.get("ResponseMetadata", {})
+            logger.warning(
+                "S3 operation failed",
+                extra={
+                    "event": "s3_operation_failed",
+                    "operation": operation.__name__,
+                    "bucket": kwargs.get("Bucket"),
+                    "aws_error_code": error_code,
+                    "aws_error_message": error.get("Message"),
+                    "http_status": metadata.get("HTTPStatusCode"),
+                    "aws_request_id": metadata.get("RequestId"),
+                },
+            )
             if error_code in {"404", "NoSuchKey", "NotFound"}:
                 raise ServiceUnavailableError(
                     "Storage object was not found.",
@@ -63,4 +80,14 @@ class S3Storage:
                 ) from exc
             raise ServiceUnavailableError("Object storage operation failed.") from exc
         except BotoCoreError as exc:
+            logger.warning(
+                "S3 operation failed",
+                extra={
+                    "event": "s3_operation_failed",
+                    "operation": operation.__name__,
+                    "bucket": kwargs.get("Bucket"),
+                    "exception_type": type(exc).__name__,
+                    "error_message": str(exc),
+                },
+            )
             raise ServiceUnavailableError("Object storage operation failed.") from exc
