@@ -38,24 +38,28 @@ Both should print version numbers without error.
 
 ---
 
-## 1. Setup
+## 1. Start the full application
+
+From the repository root, run:
 
 ```bash
-cp .env.example .env
 docker compose up --build
 ```
 
-That's it — one command. It will:
-1. Build the backend image (installs Python deps from `backend/requirements.txt`).
-2. Start Postgres and Redis.
-3. Start the FastAPI server (`api`) and the Celery worker (`worker`), both
-   waiting for Postgres/Redis to report healthy first.
+This single command builds and starts the frontend, FastAPI API, Celery worker,
+PostgreSQL, and Redis. Local database defaults are provided, so a `.env` file is
+not required for the default setup. Docker Compose also loads a root `.env` file
+if you create one to override those defaults; use `.env.example` as a reference.
 
-You should see logs from `txn_api`, `txn_worker`, `txn_postgres`, `txn_redis`
-interleaved in your terminal. Leave it running.
+When the services are ready, open:
 
-To stop: `Ctrl+C`, then `docker compose down` (add `-v` to also wipe the
-Postgres volume if you want a totally clean slate).
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- API health: [http://localhost:8000/health](http://localhost:8000/health)
+- API docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+Leave the command running to keep the application available. Stop it with
+`Ctrl+C`; then run `docker compose down` to remove the containers. Add `-v` to
+also delete the PostgreSQL data volume.
 
 ---
 
@@ -88,7 +92,7 @@ Redis → API container — is proven end to end.
 
 ```
 txn-pipeline/
-├── docker-compose.yml      # orchestrates all 4 containers
+├── docker-compose.yml      # orchestrates the API, worker, frontend, Postgres, and Redis
 ├── .env.example             # template for required env vars
 ├── backend/
 │   ├── Dockerfile
@@ -117,9 +121,10 @@ duplication.
 
 ## 5. Audits / Jobs API
 
-The first business module exposes job metadata operations:
+The audits/jobs module exposes upload and job lifecycle operations:
 
 ```text
+POST   /v1/audits/upload
 POST   /v1/audits
 GET    /v1/audits
 GET    /v1/audits/{job_id}/status
@@ -127,6 +132,5 @@ DELETE /v1/audits/{job_id}
 ```
 
 See [backend/app/modules/audits/docs/README.md](backend/app/modules/audits/docs/README.md)
-for request and response details. The endpoint does not upload CSV content or
-dispatch processing yet; those capabilities will be added with the storage and
-processing milestones.
+for request and response details. The upload endpoint stores a CSV and creates
+an audit job for asynchronous processing.
