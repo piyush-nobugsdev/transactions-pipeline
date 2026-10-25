@@ -1,14 +1,15 @@
 # Audits / Jobs API
 
-This module owns the audit job lifecycle. It currently supports multipart upload to
-the configured storage adapter, metadata creation, status retrieval, listing, and
-deletion.
+This module owns the audit job lifecycle. It supports metadata creation, CSV
+preview and column mapping, multipart upload to the configured storage adapter,
+asynchronous processing dispatch, status retrieval, listing, and deletion.
 
 ## Endpoints
 
 ### `POST /v1/audits`
 
-Creates a pending audit job from validated file metadata. The raw file upload, S3 persistence, and asynchronous processing dispatch are deliberately deferred to the storage and processing milestones.
+Creates a pending job from validated file metadata. The uploaded-file flow is
+described below.
 
 Request example:
 
@@ -29,10 +30,60 @@ Returns `201 Created` with the public job metadata. Internal storage coordinates
 
 ### `POST /v1/audits/upload`
 
-Accepts `multipart/form-data` with a required `file` field and optional
-`business_label`. The service hashes and stores the file through the storage
-abstraction, then creates a pending job. Failed database persistence triggers
-storage cleanup.
+Accepts `multipart/form-data` with a required `file` field, optional
+`business_label`, and optional `column_mappings` JSON object. The API maps the
+source headers to the canonical transaction fields before storing and queuing
+the CSV. If `column_mappings` is omitted, confident aliases are applied
+automatically; if required fields remain missing or ambiguous, the user should
+preview the CSV and submit explicit mappings.
+
+`column_mappings` maps canonical field names to the original CSV header text:
+
+```json
+{
+  "date": "Transaction Date",
+  "merchant": "Narration",
+  "amount": "Transaction Amount",
+  "currency": "Currency Code",
+  "status": "Transaction Status",
+  "account_id": "Account Number",
+  "txn_id": "Reference Number",
+  "category": "Transaction Category"
+}
+```
+
+The six required canonical fields are `date`, `merchant`, `amount`, `currency`,
+`status`, and `account_id`. `txn_id` and `category` are optional. Each source
+column must exist in the uploaded file and may be selected for only one
+canonical field. Unmapped extra columns are omitted. The API stores the
+canonicalized CSV, then creates the audit job and dispatches its processing
+task. CSV structure and row values are validated by the processing cleaner.
+Invalid mappings are rejected before storage.
+
+### `POST /v1/audits/upload/preview`
+
+Accepts multipart `file` and returns the original headers and up to five sample
+rows, suggested mappings, per-field `automatic`, `ambiguous`, or `missing`
+status and candidate headers, and blocking issues. The selected source headers
+can be sent as `column_mappings` to the upload endpoint.
+
+Header matching trims whitespace and ignores case and punctuation. Recognized
+aliases include:
+
+| Canonical field | Recognized source header examples |
+|---|---|
+| `date` | `Date`, `Transaction Date`, `Txn Date`, `Posting Date`, `Value Date` |
+| `merchant` | `Merchant`, `Description`, `Narration`, `Particulars`, `Transaction Details`, `Transaction Description`, `Payee`, `Counterparty` |
+| `amount` | `Amount`, `Transaction Amount`, `Transaction Value`, `Amount INR`, `Amount USD` |
+| `currency` | `Currency`, `Currency Code`, `Transaction Currency`, `Txn Currency` |
+| `status` | `Status`, `Transaction Status`, `Txn Status`, `Transaction State` |
+| `account_id` | `Account ID`, `Account Number`, `Account No`, `Account`, `Acct Number`, `Acct No` |
+| `txn_id` | `Txn ID`, `Transaction ID`, `Transaction Reference`, `Reference Number`, `Reference`, `UTR` |
+| `category` | `Category`, `Transaction Category` |
+
+Duplicate headers after normalization are rejected instead of being guessed.
+Separate debit and credit (or withdrawal and deposit) columns are not
+supported; convert them to a single signed amount column before upload.
 
 ### `GET /v1/audits`
 
@@ -49,7 +100,9 @@ Deletes a job and its database-owned child records through the existing database
 ## Boundaries
 
 - Controllers validate transport input and map responses only.
-- `JobService` owns use-case orchestration and transaction commits.
+- Audit application services own mapping and upload/job orchestration.
+- `JobService` owns job lifecycle orchestration and transaction commits.
 - `JobRepository` is a domain-facing protocol.
 - `SqlAlchemyJobRepository` is the infrastructure implementation.
-- CSV parsing, queue dispatch, processing, results, retry, and export remain outside this first slice.
+- CSV row parsing/cleaning and transaction persistence are owned by Processing.
+  Anomaly detection, results, retry, and export are not yet implemented.

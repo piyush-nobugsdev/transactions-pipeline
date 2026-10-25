@@ -1,6 +1,6 @@
 # Processing Module
 
-This document is the root-level source of truth for the Processing business module. It describes the current implementation in `backend/app/modules/processing/`, its pipeline contract, boundaries, tests, and remaining work. Update it whenever processing behavior or its dependencies change.
+This document is the root-level source of truth for the Processing business module and its CSV contract. CSV preview and header mapping are implemented at the Audits intake boundary; transaction row validation and normalization remain in Processing.
 
 ## Purpose and scope
 
@@ -12,6 +12,7 @@ Processing is an orchestrator, not an owner of S3, Celery, SQLAlchemy, anomaly a
 
 Implemented:
 
+- audit-intake CSV preview and alias-based mapping, with manual mapping validation and canonicalization before storage
 - pure CSV validation and normalization service
 - supported mixed date formats: `YYYY-MM-DD`, `DD-MM-YYYY`, and `YYYY/MM/DD`
 - amount parsing that strips `$`, `₹`, and thousands separators; values must be positive
@@ -21,7 +22,7 @@ Implemented:
 - processing application service which loads job metadata, downloads stored content, persists normalized rows through transaction repository bulk-create, records raw/clean row counts, and marks the job completed
 - failure handling which rolls back the processing transaction, marks the job failed with a bounded error message, commits that failure state, then re-raises for Celery visibility
 - module-owned Celery task adapter, registered in the Celery app include list
-- module tests for successful CSV processing and invalid-header failure behavior
+- tests for CSV mapping aliases, ambiguous and missing fields, duplicate headers, debit/credit format rejection, canonicalization, and existing cleaner/processing behavior
 - domain ownership of `JobStatus`, `TransactionStatus`, and `AnomalyReason`; SQLAlchemy models import these domain enums
 - pytest discovery includes `backend/app/modules` so module-local tests run in the regular backend test suite
 
@@ -46,23 +47,33 @@ Celery task adapter
         -> Storage protocol
         -> TransactionRepository protocol
         -> UnitOfWork protocol
-        -> pure CSV cleaner
+            -> pure CSV cleaner
+
+Audit intake previews and maps source columns before writing the canonical CSV
+to storage. Processing downloads that canonical file and passes it to the
+existing cleaner.
 
 Infrastructure adapter constructs SQLAlchemy repositories, S3 storage, and an async session.
 ```
 
 | Layer | Location | Responsibility |
 |---|---|---|
+| Domain service | `backend/app/modules/processing/domain/services/csv_mapper.py` | Preview source headers, suggest aliases, reject unsupported debit/credit pairs, and convert selected columns to canonical CSV |
+| Application service | `backend/app/modules/audits/application/services/csv_mapping_service.py` | Resolve automatic mappings and validate manual mapping selections during audit intake |
 | Domain service | `backend/app/modules/processing/domain/services/csv_cleaner.py` | Validate CSV structure and normalize/deduplicate rows without I/O |
 | Application | `backend/app/modules/processing/application/services/processing_service.py` | Orchestrate download, cleaning, transaction persistence, state changes, commit/rollback |
 | Infrastructure worker | `backend/app/modules/processing/infrastructure/worker.py` | Celery entry point and construction of database/storage adapters |
 | Tests | `backend/app/modules/processing/tests/test_processing_service.py` | Behavior tests using real cleaner logic and in-memory boundary adapters |
 
-The Processing application layer depends on repository/storage/unit-of-work protocols. It does not import SQLAlchemy models or the Celery API. The worker is the composition boundary where concrete infrastructure is assembled.
+The Processing application layer depends on repository/storage/unit-of-work protocols. It does not import SQLAlchemy models or the Celery API. The worker is the composition boundary where concrete infrastructure is assembled. The mapping application service belongs to Audits because it is part of file intake; its pure header matching and canonicalization functions are defined in Processing's domain CSV service.
 
 ## CSV contract
 
-The CSV header is required and is normalized by trimming whitespace and lowercasing names. The required columns are:
+Before storage, the upload flow previews headers and automatically maps recognized aliases to canonical fields. Matching trims surrounding whitespace and ignores case and punctuation. For example, `Transaction Date`, `Txn Date`, `Posting Date`, and `Value Date` map to `date`; `Description`, `Narration`, `Particulars`, and `Transaction Details` map to `merchant`; `Transaction Amount` maps to `amount`; and `Account Number` maps to `account_id`. The preview response exposes candidate aliases and marks each field as automatic, ambiguous, or missing. If a required field is missing or has multiple candidate headers, the user selects a source column in the upload UI. The API validates that each selected source exists and is unique. `txn_id` and `category` are optional. Unmapped extra columns are ignored.
+
+Files with separate debit and credit columns are currently unsupported and are blocked with guidance to convert them to a single signed amount column. The selected data is rewritten to the canonical CSV schema before storage; the existing cleaner and downstream transaction schema remain unchanged.
+
+The canonical CSV header is normalized by trimming whitespace and lowercasing names. The required columns are:
 
 - `date`
 - `merchant`
@@ -71,9 +82,9 @@ The CSV header is required and is normalized by trimming whitespace and lowercas
 - `status`
 - `account_id`
 
-The optional columns are `txn_id` and `category`. Unknown columns, duplicate normalized headers, missing required headers, malformed UTF-8, rows with extra values, empty merchants/accounts, invalid dates/currencies/statuses, and non-positive amounts fail processing. Entirely blank rows are ignored.
+The optional columns are `txn_id` and `category`. Unknown source columns are dropped during mapping. Duplicate headers after normalization, missing required mappings, malformed UTF-8, rows with extra or missing values, empty merchants/accounts, invalid dates/currencies/statuses, and non-positive amounts are rejected. Entirely blank rows are ignored. CSV status values must normalize to one of `SUCCESS`, `FAILED`, or `PENDING`; values such as `COMPLETED` are not accepted as transaction statuses.
 
-For each nonblank data row, `row_count_raw` increases before cleaning. `row_count_clean` is the number of normalized records after exact duplicate removal. The cleaner currently accepts only UTF-8/UTF-8 BOM input. Currency is uppercased and must be three alphabetic characters. Status must match the domain `TransactionStatus` values (`SUCCESS`, `FAILED`, `PENDING`).
+For each nonblank data row, `row_count_raw` increases before cleaning. `row_count_clean` is the number of normalized records after exact duplicate removal. The cleaner currently accepts only UTF-8/UTF-8 BOM input. Currency is uppercased and must be three alphabetic characters. Status must match the domain `TransactionStatus` values (`SUCCESS`, `FAILED`, `PENDING`). The current row validation error may say only that a row contains an invalid value; inspect the worker traceback to identify the failing field/value.
 
 Exact duplicate key:
 
@@ -109,7 +120,11 @@ The worker task name remains `app.core.infrastructure.tasks.process_audit_job` f
 
 ## Testing and verification
 
-The module tests exercise actual CSV parsing, normalization, deduplication, persistence delegation, completion counts, and invalid-header failure behavior. The transaction module's existing API tests are also now included by pytest discovery.
+The module tests exercise alias matching, manual mapping validation,
+ambiguous/missing/duplicate headers, debit/credit rejection, canonicalization,
+CSV parsing, normalization, deduplication, persistence delegation, completion
+counts, and invalid-header failure behavior. The transaction module's existing
+API tests are also now included by pytest discovery.
 
 Run from `backend/`:
 

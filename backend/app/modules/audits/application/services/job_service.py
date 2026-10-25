@@ -12,6 +12,7 @@ from app.core.storage.interface import Storage
 from ...domain.entities import JobRecord, JobStatus
 from ...domain.repositories.job_repository import JobRepository
 from ..dto.request.job_requests import CreateJobRequest
+from .csv_mapping_service import CSVMappingService
 
 logger = get_logger(__name__)
 
@@ -29,6 +30,7 @@ class JobService:
         self.storage = storage
         self.storage_bucket = storage_bucket
         self.retention_days = retention_days
+        self.csv_mapping_service = CSVMappingService()
 
     async def create_job(self, request: CreateJobRequest) -> JobRecord:
         job = await self.repository.create(**request.model_dump())
@@ -42,11 +44,13 @@ class JobService:
         business_label: str | None,
         content: bytes,
         content_type: str,
+        column_mappings: dict[str, str | None] | None = None,
         bucket: str | None = None,
         retention_days: int | None = None,
     ) -> JobRecord:
         if self.storage is None:
             raise RuntimeError("Storage is required for uploaded jobs.")
+        content = self.csv_mapping_service.canonicalize(content, column_mappings)
         file_hash = hashlib.sha256(content).hexdigest()
         key = f"audits/{file_hash[:2]}/{file_hash}-{filename}"
         await self.storage.upload(key=key, content=content, content_type=content_type)

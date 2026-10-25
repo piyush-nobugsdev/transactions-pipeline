@@ -66,16 +66,17 @@ async def test_uploaded_job_stores_content_before_creating_job():
     # Verifies uploaded bytes are sent to storage and the created job records their hash and size.
     storage: Storage = FakeStorage()
     service = JobService(FakeRepository(), storage, storage_bucket="audit-bucket")
+    content = b"date,merchant,amount,currency,status,account_id\n2026-01-01,Shop,10,USD,SUCCESS,acct-1"
 
     job = await service.create_uploaded_job(
         filename="expenses.csv",
         business_label="Acme",
-        content=b"date,amount\n2026-01-01,10",
+        content=content,
         content_type="text/csv",
     )
 
     assert job.filename == "expenses.csv"
-    assert job.file_size_bytes == 25
+    assert job.file_size_bytes == len(next(iter(storage.objects.values())))
     assert job.s3_bucket == "audit-bucket"
     assert len(storage.objects) == 1
 
@@ -85,12 +86,13 @@ async def test_uploaded_job_deletes_object_when_database_creation_fails():
     # Verifies an orphaned object is removed when database persistence fails after the storage upload.
     storage = FakeStorage()
     service = JobService(FakeRepository(fail=True), storage, storage_bucket="audit-bucket")
+    content = b"date,merchant,amount,currency,status,account_id\n2026-01-01,Shop,10,USD,SUCCESS,acct-1"
 
     with pytest.raises(RuntimeError, match="database unavailable"):
         await service.create_uploaded_job(
             filename="expenses.csv",
             business_label=None,
-            content=b"content",
+            content=content,
             content_type="text/csv",
         )
 

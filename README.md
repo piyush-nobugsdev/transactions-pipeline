@@ -125,6 +125,7 @@ The audits/jobs module exposes upload and job lifecycle operations:
 
 ```text
 POST   /v1/audits/upload
+POST   /v1/audits/upload/preview
 POST   /v1/audits
 GET    /v1/audits
 GET    /v1/audits/{job_id}/status
@@ -132,5 +133,7 @@ DELETE /v1/audits/{job_id}
 ```
 
 See [backend/app/modules/audits/docs/README.md](backend/app/modules/audits/docs/README.md)
-for request and response details. The upload endpoint stores a CSV and creates
-an audit job for asynchronous processing.
+for request and response details. The preview endpoint returns sample rows and
+suggested column mappings. The upload UI supports automatic aliases and manual
+mapping for required transaction fields before the canonical CSV is stored and
+processed. Anomaly detection is not implemented yet.

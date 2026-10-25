@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -52,6 +53,23 @@ class InMemoryJobRepository:
 
     async def delete(self, job_id: UUID) -> bool:
         return self.jobs.pop(job_id, None) is not None
+
+
+class InMemoryStorage:
+    def __init__(self) -> None:
+        self.objects: dict[str, bytes] = {}
+
+    async def upload(self, *, key: str, content: bytes, content_type: str) -> None:
+        self.objects[key] = content
+
+    async def download(self, *, key: str) -> bytes:
+        return self.objects[key]
+
+    async def delete(self, *, key: str) -> None:
+        self.objects.pop(key, None)
+
+    async def exists(self, *, key: str) -> bool:
+        return key in self.objects
 
 
 @pytest.fixture
@@ -120,6 +138,64 @@ def test_create_audit_rejects_invalid_file_hash(client):
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_upload_preview_suggests_aliases_and_returns_sample_rows(client):
+    response = client.post(
+        "/v1/audits/upload/preview",
+        files={
+            "file": (
+                "bank.csv",
+                b"Transaction Date,Description,Transaction Amount,Currency,Status,Account Number\n"
+                b"2026-01-01,Coffee Shop,9.50,INR,SUCCESS,acct-5\n",
+                "text/csv",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["suggested_mappings"]["date"] == "Transaction Date"
+    assert body["mapping_status"]["amount"] == "automatic"
+    assert body["preview_rows"][0]["Description"] == "Coffee Shop"
+
+
+def test_upload_with_manual_mapping_stores_canonical_csv(client, monkeypatch):
+    repository = InMemoryJobRepository()
+    storage = InMemoryStorage()
+    app.dependency_overrides[get_job_service] = lambda: JobService(
+        repository,
+        storage,
+        storage_bucket="audit-bucket",
+    )
+    monkeypatch.setattr(
+        "app.modules.audits.application.services.job_service.celery_app.send_task",
+        lambda *args, **kwargs: None,
+    )
+    source = (
+        b"Transaction Date,Narration,Net Value,ISO Currency,Result,Account Number\n"
+        b"2026-01-01,Coffee Shop,9.50,INR,SUCCESS,acct-5\n"
+    )
+    mappings = {
+        "date": "Transaction Date",
+        "merchant": "Narration",
+        "amount": "Net Value",
+        "currency": "ISO Currency",
+        "status": "Result",
+        "account_id": "Account Number",
+    }
+
+    response = client.post(
+        "/v1/audits/upload",
+        data={"column_mappings": json.dumps(mappings)},
+        files={"file": ("bank.csv", source, "text/csv")},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "processing"
+    stored_csv = next(iter(storage.objects.values()))
+    assert stored_csv.startswith(b"date,merchant,amount,currency,status,account_id\n")
+    assert b"Coffee Shop" in stored_csv
 
 
 @pytest.mark.asyncio

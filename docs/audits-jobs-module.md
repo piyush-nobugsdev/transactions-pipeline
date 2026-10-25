@@ -40,7 +40,7 @@ Implemented:
 
 Not implemented in this module:
 
-- CSV parsing and row-level validation logic beyond the stored file metadata
+- CSV row parsing and cleaning (owned by the Processing module)
 - S3 download, existence checks, and deletion primitives in the job lifecycle contract
 - result retrieval and summary persistence for completed jobs
 - anomaly results and LLM classification or narrative summaries
@@ -258,10 +258,22 @@ POST /v1/audits/upload
 Content-Type: multipart/form-data
 ```
 
-The request contains a required `file` field and an optional `business_label`.
-The service computes the SHA-256 digest, uploads the bytes through `Storage`, and
-creates a pending job. Empty files and files larger than `MAX_UPLOAD_SIZE_BYTES`
-are rejected. If database persistence fails after the upload, the object is
+The request contains required `file`, optional `business_label`, and optional
+`column_mappings` JSON. Upload processing previews recognized source headers,
+rewrites selected columns to the canonical transaction CSV schema, stores that
+canonical CSV through `Storage`, creates the job, and dispatches the worker.
+When mappings are omitted, confident aliases are applied automatically; missing
+or ambiguous required fields must be resolved by the user.
+
+Use `POST /v1/audits/upload/preview` with multipart `file` to get the original
+headers, up to five sample rows, mapping suggestions, ambiguity status, and
+blocking issues before upload. The mapping UI permits one source column per
+canonical field. Unmapped extras are ignored. Duplicate normalized headers are
+rejected. Separate debit/credit or withdrawal/deposit columns are not supported
+and require conversion to one signed amount column before upload.
+
+Empty files and files larger than `MAX_UPLOAD_SIZE_BYTES` are rejected. If
+database persistence fails after the storage upload, the stored object is
 deleted as compensation.
 
 ### Delete a job
