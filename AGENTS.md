@@ -1,6 +1,10 @@
 # AGENTS.md
 
-This file is the single source of truth for backend architecture and development standards in this repository.
+This file is the single source of truth for backend development standards and
+mandatory architecture rules in this repository. The [`docs/`](docs/README.md)
+folder is the canonical home for project documentation and current technical
+contracts; module-local `docs/` folders contain pointers to those root guides,
+not duplicate specifications.
 
 ## Purpose
 

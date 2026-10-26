@@ -91,7 +91,8 @@ step.
 
 The project still needs additional hardening for production-grade CI, especially:
 
-- broader end-to-end coverage against the live stack
+- broader end-to-end coverage against the live stack; the current workflow does
+  not run pytest
 - explicit test coverage for background worker retries and idempotency
 - integration tests for S3 and database-backed flows
 - full policy alignment between docs and runtime behavior as the pipeline evolves
@@ -103,11 +104,10 @@ ignore the existing validation gates that are already in place.
 ## Tests and current CI configuration
 
 - Current repo configuration: the main CI workflow validates the environment,
-  runs linting, verifies Docker compose, and builds the stack, but does not
-  currently execute the backend pytest suite in the primary job. The repo still
-  contains a working unit-test suite, and the first recommended follow-up is to
-  re-enable it in a dedicated CI job for PR feedback while keeping Docker build
-  validation in place.
+  runs linting, validates Docker compose, builds and starts the stack, and polls
+  the API health endpoint. It does not currently execute the backend pytest
+  suite. The first recommended follow-up is to re-enable tests in a dedicated
+  CI job while keeping Docker build and health validation in place.
 
 - About `backend/tests/test_config.py`:
         - Type: Unit test (no Docker required). It verifies that the `Settings`

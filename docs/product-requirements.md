@@ -1,4 +1,9 @@
-# LedgerGuard — AI-Powered Expense Audit Tool for Small Businesses
+# LedgerGuard Product Requirements
+
+This is the version 2 product requirements document and the canonical target
+behavior for the project. Requirements here describe intended behavior, not
+necessarily implemented behavior; see [Project Documentation](README.md) and
+the module guides for current implementation status.
 
 **Version 2** — updated with storage, frontend, auth, and retention decisions.
 

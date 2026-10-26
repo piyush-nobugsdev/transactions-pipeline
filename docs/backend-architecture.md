@@ -1,111 +1,86 @@
-# Backend Architecture Blueprint
+# Backend Architecture
 
-This repository is being structured as a monorepo with a clear separation between backend and frontend.
+This document describes the architecture implemented in the repository. The
+backend development requirements and mandatory conventions are in
+[AGENTS.md](../AGENTS.md); this guide records the current code organization.
 
-## Architectural goals
+## System shape
 
-- Backend-first, modular, and scalable.
-- Strong validation at every boundary.
-- Domain logic isolated from infrastructure details.
-- Cross-cutting concerns implemented once and reused globally.
-- Environment configuration validated at startup.
-- Unit and integration tests for every module.
-
-## Core principles
-
-1. Validation pipeline
-   - Request DTOs and response DTOs live near the API layer.
-   - Domain objects validate their own invariants.
-   - Infrastructure boundaries validate external data.
-- Centralized exception handling
-   - Shared application exceptions live under backend/app/core/exceptions.
-   - Global FastAPI handlers normalize application, validation, HTTP, and unexpected errors into a consistent schema.
-   - Service and domain code raise typed exceptions; routes remain thin and do not need repetitive try/except blocks.
-2. Domain/infrastructure separation
-   - Domain services contain business rules.
-   - Repositories and adapters implement persistence and external integrations.
-   - The domain depends on interfaces, not concrete ORM or database implementations.
-
-3. Cross-cutting concerns
-   - Logging, exception handling, auth, tracing, security, caching, background jobs, and settings live in core modules.
-   - They are applied globally through middleware, dependency injection, and shared utilities.
-
-4. Environment validation
-   - Settings are loaded through a strict configuration schema.
-   - Invalid or missing environment variables fail fast at startup.
-
-5. Testing strategy
-   - Unit tests target domain services and validators.
-   - Integration tests target API endpoints, database interactions, and workers.
-
-## Proposed structure
+The backend uses FastAPI, with shared infrastructure in `backend/app/core/` and
+vertical business capabilities in `backend/app/modules/`. SQLAlchemy persistence
+models and shared DB session infrastructure currently live outside individual
+modules; modules access persistence through adapters and repository contracts.
 
 ```text
-backend/
-├── app/
-│   ├── api/
-│   │   ├── deps/
-│   │   ├── v1/
-│   │   │   ├── routers/
-│   │   │   └── dto/
-│   │   │       ├── request/
-│   │   │       └── response/
-│   ├── core/
-│   │   ├── config/
-│   │   ├── exceptions/
-│   │   ├── logging/
-│   │   ├── middleware/
-│   │   ├── security/
-│   │   └── dependency_injection/
-│   ├── domain/
-│   │   ├── entities/
-│   │   ├── value_objects/
-│   │   ├── services/
-│   │   └── ports/
-│   ├── infrastructure/
-│   │   ├── db/
-│   │   ├── repositories/
-│   │   ├── external_clients/
-│   │   ├── cache/
-│   │   └── workers/
-│   ├── modules/
-│   │   ├── auth/
-│   │   ├── users/
-│   │   ├── transactions/
-│   │   ├── uploads/
-│   │   └── reports/
-│   ├── shared/
-│   │   ├── schemas/
-│   │   ├── enums/
-│   │   ├── constants/
-│   │   └── utils/
-│   └── main.py
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── factories/
-├── alembic/
-├── requirements.txt
-├── pyproject.toml
-└── .env.example
-
-frontend/
-├── src/
-│   ├── app/
-│   ├── features/
-│   ├── shared/
-│   ├── services/
-│   └── types/
-├── public/
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+FastAPI controllers
+        |
+        v
+Application services and DTOs
+        |
+        v
+Domain entities, rules, and repository contracts
+        ^
+        |
+Infrastructure adapters (SQLAlchemy, S3, Celery)
 ```
 
-## How each requirement is implemented
+Controllers validate/shape transport data and delegate. Application services
+orchestrate use cases. Domain logic should remain independent of HTTP, ORM,
+database, queue, and provider details. Infrastructure implements the required
+adapters at the composition boundaries.
 
-- Validation pipeline: API DTOs in api/v1/dto, domain validation in domain/services and entities, global validators in core.
-- Domain/infrastructure separation: domain layers use repository interfaces in domain/ports; infrastructure implements them in infrastructure/repositories.
-- Cross-cutting concerns: logging, exceptions, middleware, security, config, and dependency injection live under core.
-- Environment validation: configuration schema under core/config and loaded early in app startup.
-- Testing: unit tests for domain logic, integration tests for routers, repositories, and workers.
+## Current layout
+
+```text
+backend/app/
+  main.py
+  core/
+    config/
+    database/
+    exceptions/
+    infrastructure/       # shared Celery/task wiring
+    logging/
+    storage/
+  modules/
+    audits/
+    anomalies/
+    processing/
+    transactions/
+  schemas/models.py        # current shared SQLAlchemy model registry
+```
+
+The product and implementation status of each module is documented in the
+corresponding root guide: [Audits and Jobs](audits-jobs-module.md),
+[Transactions](transactions-module.md), [Processing](processing-module.md),
+and [Anomaly Detection](anomalies-module.md).
+
+## Dependency rules
+
+- Controllers depend on application services, DTOs, and boundary dependencies.
+- Application services depend on domain abstractions and shared core facilities.
+- Domain code owns business rules and repository contracts; it does not depend
+  on concrete infrastructure.
+- Infrastructure adapters implement domain contracts and translate persistence
+  or provider shapes.
+- Shared concerns such as settings, database sessions, exceptions, logging, and
+  storage belong in `core/`.
+
+The SQLAlchemy models remain in `backend/app/schemas/models.py` as a known
+centralization point. New business behavior should not reach into ORM models
+directly; module-owned adapters should map them to domain records.
+
+## Validation and errors
+
+Request and response DTOs define explicit API contracts. Domain entities and
+services enforce business invariants, and infrastructure validates data read
+from external systems. The shared exception handlers provide the common HTTP
+error envelope. See [Configuration](config.md), [Database and Migrations](database-and-migration.md),
+and [Exception Handling](exceptions.md) for the detailed contracts.
+
+## Testing
+
+The repository uses module-local tests under `backend/app/modules/` and shared
+backend tests under `backend/tests/`. Focused tests run from the repository root
+with `pytest <path> -q`; the full backend suite runs from `backend/` with
+`python -m pytest -q`. Current database-backed integration coverage is tracked
+in the module guides and [CI/CD](ci_cd.md).

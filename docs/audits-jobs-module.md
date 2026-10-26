@@ -22,8 +22,9 @@ attempts to enqueue the processing task once the job is marked as `processing`.
 If that dispatch fails, the job is marked `failed` and the exception is re-raised
 instead of leaving a hidden stuck state.
 
-The raw processing pipeline beyond cleaning and persistence remains the next major
-milestone. Results, retry, CSV export, and AI classification are still deferred.
+The separate Anomaly Detection module can scan transactions through its API, but
+the worker does not invoke it. Results, retry, CSV export, and AI classification
+are still deferred.
 
 ## Current Scope
 
@@ -43,7 +44,7 @@ Not implemented in this module:
 - CSV row parsing and cleaning (owned by the Processing module)
 - S3 download, existence checks, and deletion primitives in the job lifecycle contract
 - result retrieval and summary persistence for completed jobs
-- anomaly results and LLM classification or narrative summaries
+- result retrieval and LLM classification or narrative summaries
 - retrying failed jobs and dead-letter handling
 - CSV export and retention cleanup automation
 - authentication, authorization, and tenant isolation
@@ -412,25 +413,19 @@ what behavior it verifies.
 
 ## Logging and Correlation
 
-The application middleware establishes the API logging context. The current audit
-routes do not generate a separate job-processing task, so processing-stage
-correlation will be added when queue dispatch is implemented.
-
-When asynchronous processing is introduced, the job UUID must be passed explicitly
-to the worker and included in the worker logging context according to
-`docs/structured-logging-and-correlation.md`.
+The application middleware establishes the API logging context. Job IDs are
+passed to the worker and included in worker logging context. See
+[Structured Logging and Correlation](structured-logging-and-correlation.md).
 
 ## Planned Extensions
 
 The next additions should preserve the current boundaries:
 
 1. Connect storage deletion to the job deletion use case.
-2. Add a queue dispatcher abstraction and dispatch a processing job after upload.
-3. Add explicit job state transition rules for `pending`, `processing`, `completed`, and `failed`.
-4. Add transaction/result queries without exposing ORM models to controllers.
-5. Add retry and export use cases.
-6. Add integration tests against PostgreSQL and the storage/queue adapters.
-7. Add authentication and tenant/business ownership checks before exposing jobs beyond local development.
+2. Add transaction/result queries without exposing ORM models to controllers.
+3. Add retry and export use cases.
+4. Add integration tests against PostgreSQL and the storage/queue adapters.
+5. Add authentication and tenant/business ownership checks before exposing jobs beyond local development.
 
 These extensions must not put S3, Celery, CSV parsing, or processing algorithms into
 `controllers/` or the domain entity.
@@ -446,5 +441,5 @@ These extensions must not put S3, Celery, CSV parsing, or processing algorithms 
 - [Repository contract](../backend/app/modules/audits/domain/repositories/job_repository.py)
 - [SQLAlchemy repository](../backend/app/modules/audits/infrastructure/persistence/sqlalchemy_job_repository.py)
 - [Tests](../backend/tests/test_audits_jobs.py)
-- [Plan](../plan.md)
+- [Project plan](project-plan.md)
 - [Architecture rules](../AGENTS.md)

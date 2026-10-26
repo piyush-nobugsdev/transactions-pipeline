@@ -21,4 +21,13 @@ class TransactionRepository(Protocol):
         limit: int = 50,
     ) -> list[TransactionRecord]: ...
 
+    async def update_anomaly_flags(
+        self,
+        transaction_id: UUID,
+        *,
+        is_anomaly: bool,
+        anomaly_reason: object | None,
+        duplicate_of_txn_id: str | None = None,
+    ) -> bool: ...
+
     async def delete(self, transaction_id: UUID) -> bool: ...

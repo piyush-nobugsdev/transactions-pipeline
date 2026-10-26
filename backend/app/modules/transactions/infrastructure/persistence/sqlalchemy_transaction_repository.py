@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import ConflictError
 from app.schemas.models import Transaction
 
-from ...domain.entities import TransactionRecord
+from ...domain.entities import AnomalyReason, TransactionRecord
 
 
 class SqlAlchemyTransactionRepository:
@@ -60,6 +60,22 @@ class SqlAlchemyTransactionRepository:
         statement = statement.order_by(Transaction.date.desc()).offset(offset).limit(limit)
         result = await self.session.execute(statement)
         return [self._to_domain(transaction) for transaction in result.scalars().all()]
+
+    async def update_anomaly_flags(
+        self,
+        transaction_id: UUID,
+        *,
+        is_anomaly: bool,
+        anomaly_reason: AnomalyReason | object | None,
+        duplicate_of_txn_id: str | None = None,
+    ) -> bool:
+        transaction = await self.session.get(Transaction, transaction_id)
+        if transaction is None:
+            return False
+        transaction.is_anomaly = is_anomaly
+        transaction.anomaly_reason = anomaly_reason
+        transaction.duplicate_of_txn_id = duplicate_of_txn_id
+        return True
 
     async def delete(self, transaction_id: UUID) -> bool:
         result = await self.session.execute(delete(Transaction).where(Transaction.id == transaction_id))

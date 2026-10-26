@@ -6,7 +6,11 @@ This document is the root-level source of truth for the Transactions business mo
 
 The Transactions module owns normalized transaction records associated with audit jobs. Its current responsibilities are creating one transaction, retrieving one transaction, listing transactions (optionally filtered by job), and deleting one transaction.
 
-The module does not currently parse CSV files, normalize input rows as a pipeline stage, detect anomalies, classify transactions, generate summaries, or export CSV. Those behaviors belong in later processing, anomaly, AI, or audit-result work and should call the transaction domain/repository contract rather than reaching into SQLAlchemy models.
+The module does not parse CSV files, own anomaly rules, classify transactions,
+generate summaries, or export CSV. CSV normalization belongs to Processing;
+anomaly rules belong to Anomaly Detection, which updates transaction anomaly
+fields through repository access. Classification and results/export remain
+future work.
 
 ## Current implementation status
 
@@ -24,6 +28,8 @@ Not yet complete or verified:
 
 - the module still needs database-backed integration coverage beyond the in-memory API tests
 - bulk creation exists only as a repository protocol/adapter method and is still not exposed through a public application use case or HTTP endpoint
+- anomaly flag updates are also used by the Anomaly Detection module; the
+  transaction HTTP API does not expose a dedicated anomaly-update operation
 - no transaction update endpoint or export support exists
 - the create endpoint still accepts anomaly and LLM-related fields from callers; public write permissions should be narrowed before production exposure
 - transaction creation does not yet verify the associated job through an application-level use case; the database foreign key is still the current integrity boundary
@@ -51,12 +57,15 @@ Current files:
 | Application | `backend/app/modules/transactions/application/services/transaction_service.py` | Use-case orchestration and UUID conversion |
 | Application DTOs | `backend/app/modules/transactions/application/dto/request/transaction_requests.py`, `response/transaction_responses.py` | Request validation and explicit response shape |
 | Application mapper | `backend/app/modules/transactions/application/mappers/transaction_mapper.py` | Domain record to response DTO |
-| Domain | `backend/app/modules/transactions/domain/entities.py`, `repositories/transaction_repository.py` | Transaction record and repository contract; enum imports currently couple the entity to the shared model package |
+| Domain | `backend/app/modules/transactions/domain/entities.py`, `repositories/transaction_repository.py` | Transaction record, domain-owned enums, and repository contract |
 | Infrastructure | `backend/app/modules/transactions/infrastructure/persistence/sqlalchemy_transaction_repository.py` | SQLAlchemy operations and persistence-to-domain mapping |
-| Tests | `backend/app/modules/transactions/tests/test_transaction_service.py` | In-memory API behavior tests; currently outside configured pytest discovery |
+| Tests | `backend/app/modules/transactions/tests/test_transaction_service.py` | In-memory API behavior tests included in pytest discovery |
 | Local notes | `backend/app/modules/transactions/docs/README.md` | Brief module-local orientation; this root document is authoritative |
 
-The ORM model currently remains in `backend/app/schemas/models.py` as `Transaction`. New domain behavior must not import or depend on that ORM module. Follow the package-depth import guidance in `AGENTS.md`; prefer absolute imports if relative depth is unclear.
+The ORM model currently remains in `backend/app/schemas/models.py` as
+`Transaction`. New domain behavior must not import or depend on that ORM module.
+Follow the package-depth import guidance in `AGENTS.md`; prefer absolute imports
+if relative depth is unclear.
 
 ## Data model
 
@@ -83,7 +92,8 @@ The persistence table is `transactions`. Its current columns are:
 
 The standalone ORM table has no uniqueness rule for `txn_id`, and no relationship object is currently declared. Job deletion cascades through the database foreign key. Database enum values and constraints are defined by the model and migration; change both via an Alembic migration when they evolve.
 
-The domain record mirrors these fields but is a dataclass. It currently uses `TransactionStatus` and `AnomalyReason` from the shared schema/model module; that coupling is a known architecture gap.
+The domain record mirrors these fields but is a dataclass. It owns
+`TransactionStatus` and `AnomalyReason` in the transaction domain.
 
 ## HTTP API
 
@@ -144,6 +154,7 @@ The service parses `job_id` to a UUID and calls the repository. `TransactionServ
 - `bulk_create(records) -> list[TransactionRecord]`
 - `get(transaction_id) -> TransactionRecord | None`
 - `list(job_id=None, offset=0, limit=50) -> list[TransactionRecord]`
+- `update_anomaly_flags(transaction_id, is_anomaly, anomaly_reason, duplicate_of_txn_id)`
 - `delete(transaction_id) -> bool`
 
 The SQLAlchemy implementation is in `infrastructure/persistence/`. It maps ORM objects to `TransactionRecord` and performs the query filtering, ordering, pagination, and delete. Its current `bulk_create` loops over `create`; it is not an atomic or optimized bulk operation. The application service currently does not expose bulk creation.
@@ -164,8 +175,10 @@ The module-local tests exercise create response, list-by-job behavior, and delet
 ## Completion work and recommended order
 
 1. Establish transaction commit/rollback ownership and test durable create/delete behavior against the configured database.
-2. Move enums into the transaction domain (or a deliberate shared domain package) and remove domain imports from ORM modules.
-3. Ensure module tests are discovered by the configured test command; add unit and repository integration coverage.
+2. Add database-backed persistence tests and validation for the anomaly update
+   operation.
+3. Ensure module tests are discovered by the configured test command; add unit
+   and repository integration coverage.
 4. Narrow create-field permissions so clients cannot set processing-owned anomaly/LLM fields; validate job existence/ownership at the right application boundary.
 5. Expose an application-level bulk-create use case for the processing pipeline and make it transactional and appropriately efficient.
 6. Add query requirements driven by result views, then implement export preparation/contract when the audit export use case is defined.
@@ -179,4 +192,5 @@ The module-local tests exercise create response, list-by-job behavior, and delet
 - Keep repository protocols in the domain layer and concrete database logic in infrastructure.
 - Have processing depend on the transaction repository abstraction or application use case, not on SQLAlchemy classes.
 - Keep cross-cutting concerns in `backend/app/core/` and validate external input at the boundary.
-- Update this document and `plan.md` alongside behavior or contract changes.
+- Update this document and [Project Plan](project-plan.md) alongside behavior or
+  contract changes.

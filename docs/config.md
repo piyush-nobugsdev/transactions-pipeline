@@ -23,10 +23,10 @@ This keeps failures early and makes debugging reproducible.
 
 ## Files of interest
 
-- `backend/app/core/config/__init__.py` — the `Settings` model and small CLI. See also [backend/app/core/config/__init__.py](backend/app/core/config/__init__.py#L1-L200).
-- `backend/app/core/infrastructure/celery_app.py` — reads `Settings` to configure Celery. See [backend/app/core/infrastructure/celery_app.py](backend/app/core/infrastructure/celery_app.py#L1-L200).
-- `backend/app/main.py` — the FastAPI entrypoint that uses the validated settings indirectly. See [backend/app/main.py](backend/app/main.py#L1-L200).
-- `.github/workflows/ci.yaml` — CI now runs the env-check step after dependency installation. See [ .github/workflows/ci.yaml ](.github/workflows/ci.yaml#L1-L200).
+- [`backend/app/core/config/__init__.py`](../backend/app/core/config/__init__.py) — the `Settings` model and small CLI.
+- [`backend/app/core/infrastructure/celery_app.py`](../backend/app/core/infrastructure/celery_app.py) — reads `Settings` to configure Celery.
+- [`backend/app/main.py`](../backend/app/main.py) — the FastAPI entrypoint that uses the validated settings indirectly.
+- [`.github/workflows/ci.yaml`](../.github/workflows/ci.yaml) — CI runs the env-check step after dependency installation.
 
 ## How it works (technical)
 
@@ -138,7 +138,7 @@ Common issues
 
 ## Where to look next
 
-- The Celery broker/worker configuration lives in [backend/app/core/infrastructure/celery_app.py](backend/app/core/infrastructure/celery_app.py#L1-L200) and reads `Settings` for broker/back-end URLs.
-- The FastAPI app entrypoint is at [backend/app/main.py](backend/app/main.py#L1-L200).
+- The Celery broker/worker configuration lives in [`backend/app/core/infrastructure/celery_app.py`](../backend/app/core/infrastructure/celery_app.py) and reads `Settings` for broker/back-end URLs.
+- The FastAPI app entrypoint is at [`backend/app/main.py`](../backend/app/main.py).
 
 If you want, I can extend this doc with examples for common CI secret patterns (GitHub Actions examples) or add a generated JSON schema from `Settings` for automated docs.

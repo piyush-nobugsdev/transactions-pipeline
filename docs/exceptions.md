@@ -117,10 +117,6 @@ This keeps the response model explicit and makes it easier to evolve the API con
 
 Exports the exception core publicly so other modules can import from a single location.
 
-### [backend/app/core/exceptions/README.md](../backend/app/core/exceptions/README.md)
-
-Provides implementation notes and usage guidance for developers working on the backend.
-
 ## Error response contract
 
 The API uses a consistent envelope:

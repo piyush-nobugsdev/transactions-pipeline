@@ -1,6 +1,6 @@
-# LedgerGuard Backend Implementation Plan
+# LedgerGuard Project Plan and Status
 
-> **Purpose:** This document is the working master plan for building the LedgerGuard backend in a deliberate, modular, production-quality way.
+> **Purpose:** This document is the working plan for LedgerGuard. The module guides in this folder are authoritative for current implementation behavior; this plan tracks milestones and remaining work.
 >
 > **Important architectural rule:** This document intentionally does **not** make final architectural decisions on behalf of the developer. Where the implementation requires a decision, the decision is explicitly marked for the human developer to make. Best-practice recommendations are provided as guidance only.
 
@@ -98,7 +98,7 @@ This plan separates the work into:
 
 # 2. Current Foundation Status
 
-At the time this plan was created, the following cross-cutting concerns are considered complete:
+The following cross-cutting foundations are implemented:
 
 | Concern | Status |
 |---|---|
@@ -109,9 +109,32 @@ At the time this plan was created, the following cross-cutting concerns are cons
 | S3 storage abstraction and upload cleanup pattern | Complete |
 | Audit job lifecycle service and processing transitions | Complete |
 
-These should be treated as existing foundations rather than rebuilt unnecessarily.
+Treat these as existing foundations rather than rebuilding them unnecessarily.
 
-The remaining foundational work should be evaluated against the repository's current implementation and `AGENTS.md` before coding.
+Known operational gaps (including metrics, rate limiting, authentication, and
+retention cleanup) remain listed in this roadmap. Confirm current behavior in
+the root-level operational guides and `AGENTS.md` before coding.
+
+## Current business progress
+
+- Audits/jobs: upload preview and mapping, storage, job lifecycle, dispatch,
+  status/list/delete APIs are implemented. Results, reliable storage deletion,
+  retry, and export are outstanding.
+- Transactions: initial CRUD API and persistence exist; transaction bulk writes
+  support processing, but full database integration coverage and a public
+  application bulk-write use case remain outstanding.
+- Processing: CSV cleaning and transaction persistence work through a Celery
+  worker. Idempotent retries and database-backed worker integration tests are
+  outstanding.
+- Anomaly detection: the three initial rules and API-only scan/persistence are
+  implemented. The worker does not invoke the module, and scan correctness,
+  scale, configuration, and integration coverage need work. See
+  [Anomaly Detection](anomalies-module.md).
+- AI classification, summaries, result retrieval, and export are not
+  implemented.
+- The frontend currently uses Next.js 16 and React 19, while the product
+  requirements target React with Vite; resolve that documented stack mismatch.
+  See [Frontend](frontend.md).
 
 ---
 
@@ -982,7 +1005,10 @@ The first vertical slice is implemented under `backend/app/modules/audits/`:
 - Celery dispatch hook for audit processing tasks
 - module-local repository contract, application service, DTOs, mapper, SQLAlchemy repository, controller, docs, and tests
 
-The raw processing pipeline beyond a minimal queue-triggered status transition remains the next milestone, along with results, retry, and CSV export work. The current module is now able to progress from a created job into an actual processing lifecycle rather than stopping at metadata-only creation.
+The current worker cleans CSV data and persists normalized transactions. The
+separate anomaly module is not yet invoked by this lifecycle. Results, retry, CSV
+export, and worker integration of the remaining pipeline stages are still
+outstanding.
 
 ## Purpose
 
@@ -1087,8 +1113,8 @@ Treat `Job` as the central aggregate/workflow entity and keep processing algorit
 ### Current implementation status
 
 An initial transaction API/persistence slice exists under
-`backend/app/modules/transactions/`. The root-level source of truth is
-[`docs/transactions-module.md`](docs/transactions-module.md).
+`backend/app/modules/transactions/`. See
+[Transactions](transactions-module.md) for the current contract.
 
 Implemented in the current source tree:
 
@@ -1099,14 +1125,10 @@ Implemented in the current source tree:
 - `POST /v1/transactions`, `GET /v1/transactions`, `GET /v1/transactions/{transaction_id}`, and `DELETE /v1/transactions/{transaction_id}` routes
 - initial in-memory API tests
 
-This module is **not complete**. In particular, transaction writes/deletes do
-not explicitly commit in the application service, module-local tests are not
-collected by the current `backend/pytest.ini` test path, no database integration
-tests establish persistence behavior, and domain enums currently come from the
-shared ORM model module. Bulk create is not exposed as an application use case or
-HTTP endpoint, and export support is not implemented. These gaps are tracked in
-[`docs/transactions-module.md`](docs/transactions-module.md) and must be resolved
-before considering the module production-ready.
+This module is **not complete**. Application writes commit at the current
+repository/session boundary, and module tests are included in pytest discovery.
+Database integration tests, an application-level bulk-write use case, and export
+support are outstanding. See [Transactions](transactions-module.md) for details.
 
 ## Purpose
 
@@ -1191,8 +1213,8 @@ repository abstraction, never through SQLAlchemy models directly.
 ### Current implementation status
 
 The first Processing vertical slice is implemented under
-`backend/app/modules/processing/`. Its root-level source of truth is
-[`docs/processing-module.md`](docs/processing-module.md).
+`backend/app/modules/processing/`. See [Processing](processing-module.md) for
+its source-of-truth contract.
 
 Implemented:
 
@@ -1207,10 +1229,11 @@ Implemented:
 - job/transaction status and anomaly enums owned by their domain modules rather
     than the shared SQLAlchemy model module
 
-This is only the cleaning-and-persistence stage. Anomaly detection, LLM work,
-summaries, results/export, idempotent retry semantics, upload row caps, and
-database-backed worker integration tests remain pending. Do not configure Celery
-retries until repeated task delivery is idempotent.
+The worker currently performs only cleaning and transaction persistence.
+Anomaly detection exists as a separate API-driven module but is not invoked by
+the worker. LLM work, summaries, results/export, idempotent retry semantics,
+upload row caps, and database-backed worker integration tests remain pending.
+Do not configure Celery retries until repeated task delivery is idempotent.
 
 ## Purpose
 
@@ -1358,9 +1381,12 @@ Anomaly Detection Service
     +--> Currency Mismatch Detector
 ```
 
-The PRD says a row keeps only the first reason that applies in v1.
+The PRD says a row keeps only the first reason that applies in v1. The current
+module implements this priority for a scan, but its pairwise duplicate findings
+and 50-record query limit are known limitations; see
+[Anomaly Detection](anomalies-module.md).
 
-The implementation must preserve this priority if that remains the chosen product behavior:
+The implementation should preserve this priority:
 
 ```text
 Duplicate
@@ -1783,7 +1809,7 @@ Then verify the database lifecycle.
 
 The initial cleaner and transaction persistence handoff are implemented in the
 Processing module. This phase is partially complete; see
-[`docs/processing-module.md`](docs/processing-module.md) for the supported CSV
+[`processing-module.md`](processing-module.md) for the supported CSV
 contract and remaining integration work.
 
 Implement cleaning as part of the processing pipeline or as its own internal component based on the human architectural decision.
@@ -2194,22 +2220,22 @@ Do not let implementation convenience silently become architecture.
 
 Before considering the core foundation complete, verify:
 
-- [ ] Configuration validation works.
-- [ ] Centralized exception handling works.
-- [ ] Structured logging works.
-- [ ] `job_id` correlation is supported.
-- [ ] Database sessions are correctly managed.
-- [ ] SQLAlchemy async integration works.
-- [ ] Alembic migrations work.
-- [ ] Dependency injection conventions are established.
-- [ ] S3 storage abstraction works.
-- [ ] Celery/Redis infrastructure works.
-- [ ] Health endpoint works.
+- [x] Configuration validation works.
+- [x] Centralized exception handling works.
+- [x] Structured logging works.
+- [x] `job_id` correlation is supported.
+- [x] Database sessions are correctly managed.
+- [x] SQLAlchemy async integration works.
+- [x] Alembic migrations work.
+- [x] Dependency injection conventions are established.
+- [x] S3 storage abstraction works.
+- [x] Celery/Redis infrastructure works.
+- [x] Health endpoint works.
 - [ ] Readiness behavior is defined.
-- [ ] CORS is configured appropriately.
+- [x] CORS is configured for the local frontend origin.
 - [ ] Metrics infrastructure is available.
 - [ ] Rate limiting strategy is decided.
-- [ ] Security/authentication decision is documented.
+- [x] Security/authentication decision is documented (v1 has no auth).
 
 ---
 
@@ -2217,25 +2243,26 @@ Before considering the core foundation complete, verify:
 
 ## Audits
 
-- [ ] Upload endpoint
-- [ ] Job creation
-- [ ] Job status
-- [ ] Job listing
+- [x] Upload endpoint and preview
+- [x] Job creation
+- [x] Job status
+- [x] Job listing
 - [ ] Results
 - [ ] Export
 - [ ] Retry
-- [ ] Delete
+- [x] Database job deletion (object-storage deletion is still outstanding)
 
 ## Transactions
 
 - [x] Model and domain-owned transaction enums
-- [x] Repository contract and SQLAlchemy adapter (durable transaction behavior still needs verification)
-- [ ] Persistence commits and database integration tests
+- [x] Repository contract and SQLAlchemy adapter
+- [x] Application commit after single-row create/delete
+- [ ] Database integration tests
 - [x] Retrieval API (by ID and paginated/filterable list)
 - [ ] Bulk operations exposed at application boundary and verified as atomic/efficient
 - [ ] Export support
 
-See [`docs/transactions-module.md`](docs/transactions-module.md) for the module
+See [`transactions-module.md`](transactions-module.md) for the module
 contract, current implementation details, known architecture gaps, and the
 recommended completion sequence.
 
@@ -2248,19 +2275,23 @@ recommended completion sequence.
 - [x] Completion handling (transaction persistence and row counts)
 - [ ] Idempotent task redelivery and retry/resume semantics
 - [ ] Database-backed worker integration tests
-- [ ] Anomaly, AI classification, and summary stages
+- [ ] Invoke anomaly detection in the worker; AI classification and summary stages
 - [ ] Results retrieval and export integration
 
-See [`docs/processing-module.md`](docs/processing-module.md) for the implemented
+See [`processing-module.md`](processing-module.md) for the implemented
 CSV contract, processing lifecycle, and remaining work.
 
 ## Anomalies
 
-- [ ] Duplicate payment
-- [ ] Statistical outlier
-- [ ] Currency mismatch
-- [ ] Priority behavior
-- [ ] Tests
+- [x] Duplicate payment detector (API-only; see limitations)
+- [x] Statistical outlier detector (API-only; see limitations)
+- [x] Currency mismatch detector (API-only; hard-coded merchant set)
+- [x] First-match priority in the detector
+- [x] Initial unit tests for positive examples
+- [ ] Complete analysis beyond the 50-record repository limit
+- [ ] Correctness boundary and repeat-scan tests
+- [ ] Database-backed persistence and API integration tests
+- [ ] Integrate into Processing after cleaning/persistence
 
 ## AI
 

@@ -26,9 +26,16 @@ Implemented:
 - domain ownership of `JobStatus`, `TransactionStatus`, and `AnomalyReason`; SQLAlchemy models import these domain enums
 - pytest discovery includes `backend/app/modules` so module-local tests run in the regular backend test suite
 
+Implemented in a separate Anomaly Detection module, but not yet invoked by this
+worker:
+
+- duplicate-payment detection
+- statistical outlier detection
+- currency mismatch detection
+- API-only scanning and persistence of transaction anomaly flags
+
 Not implemented:
 
-- anomaly detection
 - LLM transaction classification or narrative summary
 - `JobSummary` persistence and result retrieval
 - export generation
@@ -37,6 +44,9 @@ Not implemented:
 - database-backed integration tests for the complete worker pipeline
 
 This is the first real data-processing slice, not the complete PRD pipeline.
+The anomaly module is currently available only through its API and is not part
+of this worker lifecycle; see [Anomaly Detection](anomalies-module.md) for its
+behavior and limitations.
 
 ## Architecture and source layout
 
@@ -92,7 +102,8 @@ Exact duplicate key:
 (txn_id, date, amount, merchant)
 ```
 
-This is row deduplication only; near-duplicate payment detection belongs to the future Anomaly Detection module.
+This is row deduplication only; near-duplicate payment detection belongs to the
+Anomaly Detection module, which currently runs separately from this worker.
 
 ## Processing lifecycle
 
@@ -139,7 +150,8 @@ A full backend suite should be run before merging. A database-backed worker inte
 1. Add upload row-count limits and settle CSV schema/size policies from the PRD.
 2. Add idempotent processing semantics before configuring Celery retries.
 3. Add database integration coverage for rollback, transaction persistence, and job state changes.
-4. Build the Anomaly Detection module and insert it after cleaning/persistence according to the planned orchestration boundary.
+4. Integrate the existing Anomaly Detection module after cleaning/persistence,
+   and make its scanning complete and idempotent before enabling it in the worker.
 5. Add AI classification and narrative summary stages as separate module/provider contracts.
 6. Persist `JobSummary`, add result retrieval, and then implement CSV export.
 7. Add cleanup/retention integration and revisit security/authorization before public deployment.
