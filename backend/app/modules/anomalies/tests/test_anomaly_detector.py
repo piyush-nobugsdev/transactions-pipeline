@@ -4,9 +4,8 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from app.modules.transactions.domain.entities import AnomalyReason, TransactionRecord, TransactionStatus
-
 from app.modules.anomalies.domain.services.anomaly_detector import AnomalyDetector
+from app.modules.transactions.domain.entities import AnomalyReason, TransactionRecord, TransactionStatus
 
 
 def _record(**overrides):

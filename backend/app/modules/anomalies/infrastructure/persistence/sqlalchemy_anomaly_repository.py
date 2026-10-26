@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.transactions.domain.entities import AnomalyReason, TransactionRecord
+from app.modules.transactions.domain.entities import TransactionRecord
 from app.modules.transactions.infrastructure.persistence.sqlalchemy_transaction_repository import (
     SqlAlchemyTransactionRepository,
 )
