@@ -10,6 +10,7 @@ from app.core.logging import get_logger
 from app.core.storage.interface import Storage
 from app.modules.audits.domain.entities import JobStatus
 from app.modules.audits.domain.repositories.job_repository import JobRepository
+from app.modules.transactions.domain.entities import TransactionRecord
 from app.modules.transactions.domain.repositories.transaction_repository import TransactionRepository
 
 from ...domain.services.csv_cleaner import clean_transactions
@@ -21,6 +22,10 @@ class UnitOfWork(Protocol):
     async def commit(self) -> None: ...
 
     async def rollback(self) -> None: ...
+
+
+class AnomalyScanner(Protocol):
+    async def analyze_and_persist(self, transactions: list[TransactionRecord]) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,11 +41,13 @@ class ProcessingService:
         *,
         job_repository: JobRepository,
         transaction_repository: TransactionRepository,
+        anomaly_scanner: AnomalyScanner,
         storage: Storage,
         unit_of_work: UnitOfWork,
     ) -> None:
         self.job_repository = job_repository
         self.transaction_repository = transaction_repository
+        self.anomaly_scanner = anomaly_scanner
         self.storage = storage
         self.unit_of_work = unit_of_work
 
@@ -60,7 +67,8 @@ class ProcessingService:
         try:
             content = await self.storage.download(key=job.s3_key)
             row_count_raw, records = clean_transactions(content, job_id=job.id)
-            await self.transaction_repository.bulk_create(records)
+            transactions = await self.transaction_repository.bulk_create(records)
+            await self.anomaly_scanner.analyze_and_persist(transactions)
             await self.job_repository.update(
                 job_id,
                 status=JobStatus.COMPLETED,

@@ -20,33 +20,34 @@ Implemented:
 - blank category defaulting to `Uncategorised`
 - exact duplicate removal using `(txn_id, date, amount, merchant)`
 - processing application service which loads job metadata, downloads stored content, persists normalized rows through transaction repository bulk-create, records raw/clean row counts, and marks the job completed
+- anomaly detection runs against all newly persisted transaction records before the job is completed; anomaly updates and job completion share the processing transaction
 - failure handling which rolls back the processing transaction, marks the job failed with a bounded error message, commits that failure state, then re-raises for Celery visibility
 - module-owned Celery task adapter, registered in the Celery app include list
 - tests for CSV mapping aliases, ambiguous and missing fields, duplicate headers, debit/credit format rejection, canonicalization, and existing cleaner/processing behavior
 - domain ownership of `JobStatus`, `TransactionStatus`, and `AnomalyReason`; SQLAlchemy models import these domain enums
 - pytest discovery includes `backend/app/modules` so module-local tests run in the regular backend test suite
 
-Implemented in a separate Anomaly Detection module, but not yet invoked by this
-worker:
+Implemented in a separate Anomaly Detection module and invoked by this worker:
 
 - duplicate-payment detection
 - statistical outlier detection
 - currency mismatch detection
-- API-only scanning and persistence of transaction anomaly flags
+- API scanning and persistence of transaction anomaly flags
 
 Not implemented:
 
 - LLM transaction classification or narrative summary
-- `JobSummary` persistence and result retrieval
+- `JobSummary` persistence and narrative summaries
 - export generation
 - retry/resume semantics or idempotent transaction replacement on repeated task delivery
 - upload row-count cap and broader CSV size/encoding policy beyond UTF-8 validation
 - database-backed integration tests for the complete worker pipeline
 
 This is the first real data-processing slice, not the complete PRD pipeline.
-The anomaly module is currently available only through its API and is not part
-of this worker lifecycle; see [Anomaly Detection](anomalies-module.md) for its
-behavior and limitations.
+The worker calls the anomaly application service using the transaction records
+returned by bulk persistence; it does not call the anomaly HTTP API or reload
+transactions through the scanner. The existing detector limitations still
+apply; see [Anomaly Detection](anomalies-module.md).
 
 ## Architecture and source layout
 
@@ -56,6 +57,7 @@ Celery task adapter
         -> JobRepository protocol
         -> Storage protocol
         -> TransactionRepository protocol
+        -> AnomalyScanner protocol
         -> UnitOfWork protocol
             -> pure CSV cleaner
 
@@ -112,9 +114,10 @@ Anomaly Detection module, which currently runs separately from this worker.
 3. Download the object using the job's `s3_key` from the configured Storage adapter.
 4. Validate and clean CSV rows.
 5. Persist all normalized rows through `TransactionRepository.bulk_create` in the current unit of work.
-6. Set status to `completed`, store raw/clean row counts and completion timestamp, and commit transaction rows and job completion together.
-7. If Celery enqueueing fails before the worker starts, `JobService.dispatch_processing` marks the job `failed` and re-raises so the API caller sees the dispatch failure instead of a hung `processing` job.
-8. On processing error, roll back uncommitted transaction data, mark the job `failed` with a safe bounded message, commit that state, and re-raise the original exception so Celery records task failure.
+6. Run anomaly detection on those persisted domain records and update their anomaly fields.
+7. Set status to `completed`, store raw/clean row counts and completion timestamp, and commit transaction rows, anomaly flags, and job completion together.
+8. If Celery enqueueing fails before the worker starts, `JobService.dispatch_processing` marks the job `failed` and re-raises so the API caller sees the dispatch failure instead of a hung `processing` job.
+9. On processing or anomaly-analysis error, roll back uncommitted transaction data, mark the job `failed` with a safe bounded message, commit that state, and re-raise the original exception so Celery records task failure.
 
 The processing session commits the initial `processing` state separately. Transaction persistence and final completion state share the subsequent session transaction. A redelivered task is not yet idempotent: existing transactions are not cleared/replaced, so retries may duplicate data. Do not enable automatic retries until this behavior is resolved.
 
@@ -134,7 +137,8 @@ The worker task name remains `app.core.infrastructure.tasks.process_audit_job` f
 The module tests exercise alias matching, manual mapping validation,
 ambiguous/missing/duplicate headers, debit/credit rejection, canonicalization,
 CSV parsing, normalization, deduplication, persistence delegation, completion
-counts, and invalid-header failure behavior. The transaction module's existing
+counts, anomaly-scanner delegation/persistence, analyzer failure rollback, and
+invalid-header failure behavior. The transaction module's existing
 API tests are also now included by pytest discovery.
 
 Run from `backend/`:
@@ -150,8 +154,6 @@ A full backend suite should be run before merging. A database-backed worker inte
 1. Add upload row-count limits and settle CSV schema/size policies from the PRD.
 2. Add idempotent processing semantics before configuring Celery retries.
 3. Add database integration coverage for rollback, transaction persistence, and job state changes.
-4. Integrate the existing Anomaly Detection module after cleaning/persistence,
-   and make its scanning complete and idempotent before enabling it in the worker.
-5. Add AI classification and narrative summary stages as separate module/provider contracts.
-6. Persist `JobSummary`, add result retrieval, and then implement CSV export.
-7. Add cleanup/retention integration and revisit security/authorization before public deployment.
+4. Add AI classification and narrative summary stages as separate module/provider contracts.
+5. Persist `JobSummary` and implement CSV export; transaction/anomaly result retrieval is available through the Audits module.
+6. Add cleanup/retention integration and revisit security/authorization before public deployment.

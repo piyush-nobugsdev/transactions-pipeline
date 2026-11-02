@@ -12,10 +12,11 @@ transaction access, request/response DTOs, and API routes under
 outliers, and currency mismatches, and persists the first selected reason to
 transaction anomaly fields.
 
-The module is currently invoked through its API only. The Celery processing
-pipeline does **not** call it yet, so uploaded jobs do not receive automatic
-anomaly analysis. Job result retrieval, anomaly grouping in the audit results
-API, and integration coverage against a real database are also outstanding.
+The module is invoked through its API and from the Celery processing pipeline.
+The worker analyzes newly persisted transaction records before marking the job
+complete. The Audits result endpoint exposes persisted transaction anomaly
+flags. Anomaly grouping in a job summary and integration coverage against a
+real database are still outstanding.
 
 ## API
 
@@ -30,11 +31,10 @@ response includes the job ID, number of transactions loaded, number of findings,
 and the findings. Each finding contains transaction and job IDs, merchant,
 amount, currency, account, reason, and an optional related transaction ID.
 
-The repository currently loads at most 50 transactions per call. No pagination
-or job-existence check is implemented separately; a job with no transaction
-records currently produces the shared not-found error. Treat both endpoints as
-development functionality until these API semantics are made explicit and
-covered by integration tests.
+The API scanner loads all job transactions in pages of 500. No job-existence
+check is implemented separately; a job with no transaction records currently
+produces the shared not-found error. Treat both endpoints as development
+functionality until these API semantics are covered by integration tests.
 
 ## Detection rules as currently implemented
 
@@ -64,14 +64,15 @@ row removal is currently done earlier by the CSV cleaner.
 ## Persistence and known limitations
 
 The service writes `is_anomaly`, `anomaly_reason`, and
-`duplicate_of_txn_id` to the transaction repository and commits through the
-SQLAlchemy session. Repeated scans are not read-only: they recompute findings and
-write them again. A scan does not clear a previously stored anomaly flag when a
-transaction no longer matches a rule.
+`duplicate_of_txn_id` to the transaction repository. API scans commit through
+their SQLAlchemy session; the processing worker keeps these writes in the same
+unit of work as transaction creation and job completion. Repeated scans are not
+read-only: they recompute findings and write them again. A scan does not clear a
+previously stored anomaly flag when a transaction no longer matches a rule.
 
 Additional limitations to resolve before treating this as production-ready:
 
-- The 50-record repository limit means larger jobs are only partially analyzed.
+- Duplicate matching is pairwise, so scan cost grows quadratically with job size.
 - Duplicate matching does not compare currencies or explicitly reject identical
   source transaction IDs.
 - Pairwise matching can produce multiple findings for a transaction when it
@@ -83,12 +84,8 @@ Additional limitations to resolve before treating this as production-ready:
   the PRD's business-specific rules are not wired in.
 - The API scan/list behavior and persistence do not yet have database-backed
   integration tests.
-- The application service currently imports a repository protocol declared in
-  the infrastructure package, despite a domain repository contract also
-  existing; align the service and adapter with the domain contract to preserve
-  the required inward dependency direction.
-- Processing does not invoke anomaly detection, and there is no audit results
-  endpoint that returns persisted findings.
+- The worker passes all newly created records to the detector, but repeat task
+  delivery is not idempotent and can still duplicate transaction rows.
 
 ## Tests
 

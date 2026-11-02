@@ -7,10 +7,10 @@ reporting.
 ## Current status
 
 CSV upload and preview, job lifecycle APIs, asynchronous cleaning and normalized
-transaction persistence, and API-driven anomaly scanning are implemented. The
-anomaly scanner is not yet part of the worker pipeline. AI classification,
-narrative summaries, job result retrieval, export, and production operational
-hardening remain outstanding.
+transaction persistence, worker-driven anomaly scanning, and paginated audit
+result retrieval/display are implemented. AI classification, narrative
+summaries, export, retry/idempotency, and production operational hardening
+remain outstanding.
 
 ## Run locally
 

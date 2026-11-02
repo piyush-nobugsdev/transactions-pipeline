@@ -14,6 +14,37 @@ export type AuditJob = {
   error_message: string | null;
 };
 
+export type AuditResultTransaction = {
+  id: string;
+  txn_id: string | null;
+  date: string;
+  merchant: string;
+  amount: string;
+  currency: string;
+  status: "SUCCESS" | "FAILED" | "PENDING";
+  category: string;
+  account_id: string;
+  is_anomaly: boolean;
+  anomaly_reason:
+    | "statistical_outlier"
+    | "currency_mismatch"
+    | "duplicate_payment"
+    | null;
+  duplicate_of_txn_id: string | null;
+};
+
+export type AuditResults = {
+  job_id: string;
+  status: JobStatus;
+  row_count_raw: number;
+  row_count_clean: number;
+  total_transactions: number;
+  anomaly_count: number;
+  items: AuditResultTransaction[];
+  offset: number;
+  limit: number;
+};
+
 export const CSV_MAPPING_FIELDS = [
   { key: "date", label: "Date", required: true },
   { key: "merchant", label: "Merchant / description", required: true },

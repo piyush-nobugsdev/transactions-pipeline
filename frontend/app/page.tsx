@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getAuditStatus, previewAuditFile, uploadAuditFile } from "@/lib/api";
+import {
+  getAuditResults,
+  getAuditStatus,
+  previewAuditFile,
+  uploadAuditFile,
+} from "@/lib/api";
 import {
   CSV_MAPPING_FIELDS,
   type AuditJob,
+  type AuditResults,
   type CSVMappingField,
   type CSVMappingPreview,
 } from "@/types/audit";
@@ -30,6 +36,9 @@ export default function Home() {
   >(new Set());
   const [businessLabel, setBusinessLabel] = useState("");
   const [job, setJob] = useState<AuditJob | null>(null);
+  const [results, setResults] = useState<AuditResults | null>(null);
+  const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [resultsError, setResultsError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -38,7 +47,38 @@ export default function Home() {
   const previewRequestRef = useRef(0);
 
   useEffect(() => {
-    if (!job || FINAL_STATUSES.has(job.status)) {
+    if (!job) {
+      return;
+    }
+
+    if (job.status === "completed") {
+      let isCurrent = true;
+      void getAuditResults(job.id)
+        .then((jobResults) => {
+          if (isCurrent) {
+            setResults(jobResults);
+          }
+        })
+        .catch((resultsError) => {
+          if (isCurrent) {
+            setResultsError(
+              resultsError instanceof Error
+                ? resultsError.message
+                : "Audit results could not be loaded.",
+            );
+          }
+        })
+        .finally(() => {
+          if (isCurrent) {
+            setIsLoadingResults(false);
+          }
+        });
+      return () => {
+        isCurrent = false;
+      };
+    }
+
+    if (FINAL_STATUSES.has(job.status)) {
       return;
     }
 
@@ -134,6 +174,8 @@ export default function Home() {
         mappings,
       );
       setJob(createdJob);
+      setResults(null);
+      setResultsError("");
       setIsPolling(!FINAL_STATUSES.has(createdJob.status));
       setBusinessLabel("");
       setSelectedFile(null);
@@ -177,6 +219,23 @@ export default function Home() {
       return next;
     });
     setManuallySelectedMappings((selected) => new Set(selected).add(field));
+  };
+
+  const changeResultsPage = async (offset: number) => {
+    if (!job) return;
+    setIsLoadingResults(true);
+    setResultsError("");
+    try {
+      setResults(await getAuditResults(job.id, offset));
+    } catch (resultsError) {
+      setResultsError(
+        resultsError instanceof Error
+          ? resultsError.message
+          : "Audit results could not be loaded.",
+      );
+    } finally {
+      setIsLoadingResults(false);
+    }
   };
 
   return (
@@ -386,7 +445,15 @@ export default function Home() {
             </div>
             <div className="job-line">
               <span className="label">Processing</span>
-              <strong>{isPolling ? "In progress" : "Awaiting next update"}</strong>
+              <strong>
+                {job.status === "completed"
+                  ? "Finished"
+                  : job.status === "failed"
+                    ? "Stopped"
+                    : isPolling
+                      ? "In progress"
+                      : "Awaiting processing"}
+              </strong>
             </div>
             {job.error_message ? (
               <div className="job-line error-line">
@@ -401,6 +468,136 @@ export default function Home() {
           </p>
         )}
       </section>
+
+      {job?.status === "completed" ? (
+        <section className="panel results-panel" aria-labelledby="results-title">
+          <div className="results-header">
+            <div>
+              <h2 id="results-title">Audit results</h2>
+              <p className="muted-message">
+                {results
+                  ? `${results.row_count_clean} transactions normalized from ${results.row_count_raw} CSV rows.`
+                  : "Loading processed transactions and anomaly findings."}
+              </p>
+            </div>
+            {results ? (
+              <div className="results-summary" aria-live="polite">
+                <span>{results.total_transactions} transactions</span>
+                <span className="anomaly-summary">
+                  {results.anomaly_count} flagged
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          {resultsError ? (
+            <div className="error-box">
+              {resultsError}{" "}
+              <button
+                type="button"
+                className="results-retry-button"
+                onClick={() => void changeResultsPage(results?.offset ?? 0)}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+          {!results && !resultsError ? (
+            <p className="muted-message">Loading audit results…</p>
+          ) : null}
+          {results ? (
+            <>
+              <div className="results-table-scroll">
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Merchant</th>
+                      <th>Amount</th>
+                      <th>Category</th>
+                      <th>Status</th>
+                      <th>Anomaly</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.items.length ? (
+                      results.items.map((transaction) => (
+                        <tr key={transaction.id}>
+                          <td>{transaction.date}</td>
+                          <td>{transaction.merchant}</td>
+                          <td>
+                            {transaction.currency}{" "}
+                            {Number(transaction.amount).toLocaleString(
+                              undefined,
+                              { minimumFractionDigits: 2 },
+                            )}
+                          </td>
+                          <td>{transaction.category}</td>
+                          <td>{transaction.status}</td>
+                          <td>
+                            {transaction.is_anomaly ? (
+                              <span className="anomaly-badge">
+                                {transaction.anomaly_reason?.replaceAll("_", " ")}
+                                {transaction.duplicate_of_txn_id
+                                  ? ` · matches ${transaction.duplicate_of_txn_id}`
+                                  : ""}
+                              </span>
+                            ) : (
+                              <span className="normal-badge">Clear</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="muted-message">
+                          No transactions were produced for this audit.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="results-pagination">
+                <span>
+                  {results.total_transactions === 0
+                    ? "No transactions"
+                    : `Showing ${results.offset + 1}–${Math.min(
+                        results.offset + results.items.length,
+                        results.total_transactions,
+                      )} of ${results.total_transactions}`}
+                </span>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void changeResultsPage(
+                        Math.max(0, results.offset - results.limit),
+                      )
+                    }
+                    disabled={isLoadingResults || results.offset === 0}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void changeResultsPage(results.offset + results.limit)
+                    }
+                    disabled={
+                      isLoadingResults ||
+                      results.offset + results.items.length >=
+                        results.total_transactions
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </section>
+      ) : null}
     </main>
   );
 }

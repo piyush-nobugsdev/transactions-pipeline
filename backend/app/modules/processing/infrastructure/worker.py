@@ -7,6 +7,10 @@ from app.core.database.session import AsyncSessionLocal
 from app.core.infrastructure.celery_app import celery_app
 from app.core.logging import get_logger, set_correlation_context
 from app.core.storage.dependencies import get_storage
+from app.modules.anomalies.application.services.anomaly_service import AnomalyDetectionService
+from app.modules.anomalies.infrastructure.persistence.sqlalchemy_anomaly_repository import (
+    SqlAlchemyAnomalyRepository,
+)
 from app.modules.audits.infrastructure.persistence.sqlalchemy_job_repository import SqlAlchemyJobRepository
 from app.modules.processing.application.services.processing_service import ProcessingService
 from app.modules.transactions.infrastructure.persistence.sqlalchemy_transaction_repository import (
@@ -25,6 +29,9 @@ def process_audit_job(job_id: str) -> str:
             service = ProcessingService(
                 job_repository=SqlAlchemyJobRepository(session),
                 transaction_repository=SqlAlchemyTransactionRepository(session),
+                anomaly_scanner=AnomalyDetectionService(
+                    repository=SqlAlchemyAnomalyRepository(session),
+                ),
                 storage=get_storage(),
                 unit_of_work=session,
             )

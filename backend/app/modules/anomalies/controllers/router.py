@@ -16,8 +16,7 @@ async def scan_anomalies(
     service: AnomalyDetectionService = Depends(get_anomaly_service),
 ) -> AnomalyScanResponse:
     service.detector.outlier_multiplier = request.outlier_multiplier
-    transactions = await service.repository.list_transactions_for_job(request.job_id)
-    findings = await service.scan_job(request.job_id)
+    transactions, findings = await service.scan_job(request.job_id)
     payload = service.summarize(request.job_id, transactions, findings)
     return AnomalyScanResponse(
         job_id=request.job_id,
@@ -44,8 +43,7 @@ async def list_anomalies(
     job_id: UUID = Query(...),
     service: AnomalyDetectionService = Depends(get_anomaly_service),
 ) -> AnomalyScanResponse:
-    transactions = await service.repository.list_transactions_for_job(job_id)
-    findings = await service.scan_job(job_id)
+    transactions, findings = await service.scan_job(job_id)
     payload = service.summarize(job_id, transactions, findings)
     return AnomalyScanResponse(
         job_id=job_id,

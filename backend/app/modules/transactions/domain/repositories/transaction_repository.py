@@ -21,6 +21,10 @@ class TransactionRepository(Protocol):
         limit: int = 50,
     ) -> list[TransactionRecord]: ...
 
+    async def count(self, *, job_id: UUID) -> int: ...
+
+    async def count_anomalies(self, *, job_id: UUID) -> int: ...
+
     async def update_anomaly_flags(
         self,
         transaction_id: UUID,

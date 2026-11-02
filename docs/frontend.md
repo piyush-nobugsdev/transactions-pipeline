@@ -16,6 +16,8 @@ interface is a single audit page:
 - submits the upload and optional business label to the API
 - polls the audit status endpoint every two seconds until completion or failure
 - shows job metadata and processing errors
+- fetches and displays paginated transaction results and anomaly findings after
+  processing completes
 
 The client calls the backend directly from the browser. `NEXT_PUBLIC_API_BASE_URL`
 sets the API origin and defaults to `http://localhost:8000`.
@@ -34,8 +36,6 @@ local full-stack path is Docker Compose from the repository root; see the root
 
 ## Current gaps
 
-- The UI does not yet display transaction results or anomalies, provide exports,
-  or expose retry and deletion flows.
-- The anomaly scan API is not invoked automatically by the processing worker.
+- The UI does not yet provide exports or expose retry and deletion flows.
 - The current Next.js implementation differs from the Vite target in the
   product requirements.

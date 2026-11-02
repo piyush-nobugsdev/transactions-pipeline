@@ -1,4 +1,9 @@
-import type { AuditJob, CSVMappingField, CSVMappingPreview } from "@/types/audit";
+import type {
+  AuditJob,
+  AuditResults,
+  CSVMappingField,
+  CSVMappingPreview,
+} from "@/types/audit";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -71,4 +76,25 @@ export async function getAuditStatus(jobId: string) {
   }
 
   return (await response.json()) as AuditJob;
+}
+
+export async function getAuditResults(
+  jobId: string,
+  offset = 0,
+  limit = 50,
+) {
+  const query = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+  });
+  const response = await fetch(
+    `${API_BASE_URL}/v1/audits/${jobId}/results?${query.toString()}`,
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(getErrorMessage(data, "Unable to fetch audit results."));
+  }
+
+  return (await response.json()) as AuditResults;
 }

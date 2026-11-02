@@ -22,9 +22,9 @@ attempts to enqueue the processing task once the job is marked as `processing`.
 If that dispatch fails, the job is marked `failed` and the exception is re-raised
 instead of leaving a hidden stuck state.
 
-The separate Anomaly Detection module can scan transactions through its API, but
-the worker does not invoke it. Results, retry, CSV export, and AI classification
-are still deferred.
+The Processing worker invokes the Anomaly Detection module before completing an
+uploaded job. A paginated results endpoint exposes normalized transactions and
+their anomaly flags. Retry, CSV export, and AI classification are still deferred.
 
 ## Current Scope
 
@@ -33,6 +33,7 @@ Implemented:
 - create a pending audit job
 - validate job creation input
 - retrieve one job's status and metadata
+- retrieve paginated normalized transaction results and anomaly counts
 - list jobs with offset/limit pagination
 - delete a job
 - map persistence records to domain records
@@ -43,8 +44,8 @@ Not implemented in this module:
 
 - CSV row parsing and cleaning (owned by the Processing module)
 - S3 download, existence checks, and deletion primitives in the job lifecycle contract
-- result retrieval and summary persistence for completed jobs
-- result retrieval and LLM classification or narrative summaries
+- summary persistence and narrative summaries for completed jobs
+- LLM classification
 - retrying failed jobs and dead-letter handling
 - CSV export and retention cleanup automation
 - authentication, authorization, and tenant isolation
@@ -233,9 +234,45 @@ Query parameters:
 
 Success response: `200 OK`
 
+### Get audit results
+
+```text
+GET /v1/audits/{job_id}/results?offset=0&limit=50
+```
+
+Returns job status, raw/clean row counts, total transaction and anomaly counts,
+and a paginated list of normalized transactions with anomaly reason and duplicate
+reference fields. The endpoint returns the current persisted state, so results
+may be incomplete while the job is still processing. The frontend loads this
+endpoint after the job completes.
+
+Query parameters follow the same offset and limit bounds as the job list. A
+missing job returns the standard `404 RESOURCE_NOT_FOUND` response.
+
 ```json
 {
-  "items": [],
+  "job_id": "8d2f1c65-4a0a-4a10-9f5a-1c5e7342a0d3",
+  "status": "completed",
+  "row_count_raw": 120,
+  "row_count_clean": 104,
+  "total_transactions": 104,
+  "anomaly_count": 3,
+  "items": [
+    {
+      "id": "17d2f943-2af4-4a65-ae4a-9c2ed061b4a1",
+      "txn_id": "txn-1001",
+      "date": "2026-09-20",
+      "merchant": "Example Store",
+      "amount": "125.00",
+      "currency": "USD",
+      "status": "SUCCESS",
+      "category": "Office",
+      "account_id": "acct-001",
+      "is_anomaly": true,
+      "anomaly_reason": "statistical_outlier",
+      "duplicate_of_txn_id": null
+    }
+  ],
   "offset": 0,
   "limit": 50
 }

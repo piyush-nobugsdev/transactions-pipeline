@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError
@@ -57,9 +57,23 @@ class SqlAlchemyTransactionRepository:
         statement = select(Transaction)
         if job_id is not None:
             statement = statement.where(Transaction.job_id == job_id)
-        statement = statement.order_by(Transaction.date.desc()).offset(offset).limit(limit)
+        statement = statement.order_by(Transaction.date.desc(), Transaction.id).offset(offset).limit(limit)
         result = await self.session.execute(statement)
         return [self._to_domain(transaction) for transaction in result.scalars().all()]
+
+    async def count(self, *, job_id: UUID) -> int:
+        statement = select(func.count()).select_from(Transaction).where(Transaction.job_id == job_id)
+        result = await self.session.execute(statement)
+        return result.scalar_one()
+
+    async def count_anomalies(self, *, job_id: UUID) -> int:
+        statement = (
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.job_id == job_id, Transaction.is_anomaly.is_(True))
+        )
+        result = await self.session.execute(statement)
+        return result.scalar_one()
 
     async def update_anomaly_flags(
         self,

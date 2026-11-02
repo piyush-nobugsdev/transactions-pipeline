@@ -118,20 +118,19 @@ the root-level operational guides and `AGENTS.md` before coding.
 ## Current business progress
 
 - Audits/jobs: upload preview and mapping, storage, job lifecycle, dispatch,
-  status/list/delete APIs are implemented. Results, reliable storage deletion,
-  retry, and export are outstanding.
+  status/list/delete APIs, and paginated transaction/anomaly results are
+  implemented. Reliable storage deletion, retry, and export are outstanding.
 - Transactions: initial CRUD API and persistence exist; transaction bulk writes
   support processing, but full database integration coverage and a public
   application bulk-write use case remain outstanding.
-- Processing: CSV cleaning and transaction persistence work through a Celery
-  worker. Idempotent retries and database-backed worker integration tests are
-  outstanding.
-- Anomaly detection: the three initial rules and API-only scan/persistence are
-  implemented. The worker does not invoke the module, and scan correctness,
-  scale, configuration, and integration coverage need work. See
+- Processing: CSV cleaning, transaction persistence, and anomaly detection run
+  through a Celery worker. Idempotent retries and database-backed worker
+  integration tests are outstanding.
+- Anomaly detection: the three initial rules are invoked by processing and
+  exposed through an API. Detection correctness, scale, configuration, and
+  integration coverage need work. See
   [Anomaly Detection](anomalies-module.md).
-- AI classification, summaries, result retrieval, and export are not
-  implemented.
+- AI classification, summaries, and export are not implemented.
 - The frontend currently uses Next.js 16 and React 19, while the product
   requirements target React with Vite; resolve that documented stack mismatch.
   See [Frontend](frontend.md).
@@ -1005,10 +1004,10 @@ The first vertical slice is implemented under `backend/app/modules/audits/`:
 - Celery dispatch hook for audit processing tasks
 - module-local repository contract, application service, DTOs, mapper, SQLAlchemy repository, controller, docs, and tests
 
-The current worker cleans CSV data and persists normalized transactions. The
-separate anomaly module is not yet invoked by this lifecycle. Results, retry, CSV
-export, and worker integration of the remaining pipeline stages are still
-outstanding.
+The current worker cleans CSV data, persists normalized transactions, and runs
+the anomaly detector before completion. A paginated endpoint and frontend view
+expose transactions and anomaly flags. Retry, CSV export, and the remaining
+pipeline stages are still outstanding.
 
 ## Purpose
 
@@ -1382,8 +1381,8 @@ Anomaly Detection Service
 ```
 
 The PRD says a row keeps only the first reason that applies in v1. The current
-module implements this priority for a scan, but its pairwise duplicate findings
-and 50-record query limit are known limitations; see
+module implements this priority for a scan, but pairwise duplicate findings and
+quadratic scan cost are known limitations; see
 [Anomaly Detection](anomalies-module.md).
 
 The implementation should preserve this priority:
@@ -2275,23 +2274,24 @@ recommended completion sequence.
 - [x] Completion handling (transaction persistence and row counts)
 - [ ] Idempotent task redelivery and retry/resume semantics
 - [ ] Database-backed worker integration tests
-- [ ] Invoke anomaly detection in the worker; AI classification and summary stages
-- [ ] Results retrieval and export integration
+- [x] Invoke anomaly detection in the worker
+- [x] Paginated transaction/anomaly result retrieval and frontend display
+- [ ] AI classification and summary stages
+- [ ] Export integration
 
 See [`processing-module.md`](processing-module.md) for the implemented
 CSV contract, processing lifecycle, and remaining work.
 
 ## Anomalies
 
-- [x] Duplicate payment detector (API-only; see limitations)
-- [x] Statistical outlier detector (API-only; see limitations)
-- [x] Currency mismatch detector (API-only; hard-coded merchant set)
+- [x] Duplicate payment detector (worker and API; see limitations)
+- [x] Statistical outlier detector (worker and API; see limitations)
+- [x] Currency mismatch detector (worker and API; hard-coded merchant set)
 - [x] First-match priority in the detector
 - [x] Initial unit tests for positive examples
-- [ ] Complete analysis beyond the 50-record repository limit
+- [x] Analyze all records through paginated API reads and the full worker batch
 - [ ] Correctness boundary and repeat-scan tests
 - [ ] Database-backed persistence and API integration tests
-- [ ] Integrate into Processing after cleaning/persistence
 
 ## AI
 

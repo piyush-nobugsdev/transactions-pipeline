@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,18 +12,19 @@ from app.modules.transactions.infrastructure.persistence.sqlalchemy_transaction_
 from ...domain.entities import AnomalyFinding
 
 
-class AnomalyRepository(Protocol):
-    async def list_transactions_for_job(self, job_id: UUID) -> list[TransactionRecord]: ...
-    async def bulk_update_anomaly_flags(self, findings: list[AnomalyFinding]) -> None: ...
-
-
 class SqlAlchemyAnomalyRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.transaction_repository = SqlAlchemyTransactionRepository(session)
 
-    async def list_transactions_for_job(self, job_id: UUID) -> list[TransactionRecord]:
-        return await self.transaction_repository.list(job_id=job_id)
+    async def list_transactions_for_job(
+        self,
+        job_id: UUID,
+        *,
+        offset: int = 0,
+        limit: int = 500,
+    ) -> list[TransactionRecord]:
+        return await self.transaction_repository.list(job_id=job_id, offset=offset, limit=limit)
 
     async def bulk_update_anomaly_flags(self, findings: list[AnomalyFinding]) -> None:
         for finding in findings:

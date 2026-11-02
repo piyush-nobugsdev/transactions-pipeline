@@ -379,6 +379,119 @@ h1 {
   color: var(--muted);
 }
 
+.results-panel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.results-header,
+.results-summary,
+.results-pagination,
+.results-pagination > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.results-header h2 {
+  margin-bottom: 4px;
+}
+
+.results-summary {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.anomaly-summary {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.results-table-scroll {
+  overflow: auto;
+  max-height: 520px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.results-table th,
+.results-table td {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.results-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-alt);
+  color: var(--muted);
+}
+
+.results-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.anomaly-badge,
+.normal-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 9px;
+  text-transform: capitalize;
+}
+
+.anomaly-badge {
+  background: rgba(245, 185, 66, 0.12);
+  color: var(--warning);
+}
+
+.normal-badge {
+  background: rgba(49, 196, 141, 0.12);
+  color: var(--success);
+}
+
+.results-pagination {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.results-pagination button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--panel-alt);
+  color: var(--text);
+}
+
+.results-pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.results-retry-button {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  color: #ffd8d8;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .error-line {
   color: #ffd8d8;
 }
@@ -392,5 +505,11 @@ h1 {
 @media (max-width: 560px) {
   .mapping-list {
     grid-template-columns: 1fr;
+  }
+
+  .results-header,
+  .results-pagination {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

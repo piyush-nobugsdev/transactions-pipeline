@@ -8,11 +8,13 @@ from app.core.exceptions import BadRequestError
 from app.modules.processing.domain.services.csv_mapper import CSVMappingError
 
 from ..application.dto.request.job_requests import CreateJobRequest
+from ..application.dto.response.audit_result_responses import AuditResultsResponse
 from ..application.dto.response.job_responses import JobListResponse, JobResponse
 from ..application.mappers.job_mapper import to_job_response
+from ..application.services.audit_results_service import AuditResultsService
 from ..application.services.csv_mapping_service import CSVMappingService
 from ..application.services.job_service import JobService
-from .dependencies import get_job_service
+from .dependencies import get_audit_results_service, get_job_service
 
 router = APIRouter(prefix="/v1/audits", tags=["audits"])
 
@@ -81,6 +83,16 @@ async def get_audit_status(
     service: JobService = Depends(get_job_service),
 ) -> JobResponse:
     return to_job_response(await service.get_job(job_id))
+
+
+@router.get("/{job_id}/results", response_model=AuditResultsResponse)
+async def get_audit_results(
+    job_id: UUID,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+    service: AuditResultsService = Depends(get_audit_results_service),
+) -> AuditResultsResponse:
+    return await service.get_results(job_id, offset=offset, limit=limit)
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -9,5 +9,12 @@ from ..entities import AnomalyFinding
 
 
 class AnomalyRepository(Protocol):
-    async def list_transactions_for_job(self, job_id: UUID) -> list[TransactionRecord]: ...
+    async def list_transactions_for_job(
+        self,
+        job_id: UUID,
+        *,
+        offset: int = 0,
+        limit: int = 500,
+    ) -> list[TransactionRecord]: ...
+
     async def bulk_update_anomaly_flags(self, findings: list[AnomalyFinding]) -> None: ...
