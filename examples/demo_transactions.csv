@@ -1,0 +1,12 @@
+txn_id,date,merchant,amount,currency,status,category,account_id
+demo-001,2026-11-01,Amazon Marketplace,1299.00,INR,SUCCESS,,acct-demo-1
+demo-002,2026-11-02,Amazon Marketplace,1295.00,INR,SUCCESS,,acct-demo-1
+demo-003,2026-11-01,Corner Cafe,540.00,INR,SUCCESS,,acct-demo-1
+demo-004,2026-11-04,Corner Cafe,620.00,INR,SUCCESS,,acct-demo-1
+demo-005,2026-11-07,Corner Cafe,500.00,INR,SUCCESS,,acct-demo-1
+demo-006,2026-11-08,Hardware Warehouse,12500.00,INR,SUCCESS,,acct-demo-1
+demo-007,2026-11-05,Walmart,25.00,USD,SUCCESS,,acct-demo-2
+demo-008,2026-11-06,Uber Trip,42.00,INR,SUCCESS,,acct-demo-2
+demo-009,2026-11-07,Netflix,499.00,INR,SUCCESS,,acct-demo-2
+demo-010,2026-11-08,Adobe Creative Cloud,2000.00,INR,SUCCESS,,acct-demo-1
+demo-011,2026-11-09,Amazon Marketplace,600.00,INR,FAILED,,acct-demo-2

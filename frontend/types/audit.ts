@@ -45,6 +45,47 @@ export type AuditResults = {
   limit: number;
 };
 
+export type CurrencySpend = {
+  currency: string;
+  amount: string;
+  transaction_count: number;
+};
+
+export type CategorySpend = {
+  category: string;
+  currency: string;
+  amount: string;
+  transaction_count: number;
+};
+
+export type MerchantSpend = {
+  merchant: string;
+  transaction_count: number;
+  currencies: CurrencySpend[];
+};
+
+export type TopTransaction = {
+  id: string;
+  date: string;
+  merchant: string;
+  amount: string;
+  currency: string;
+  category: string;
+  is_anomaly: boolean;
+  anomaly_reason: AuditResultTransaction["anomaly_reason"];
+};
+
+export type AuditInsights = {
+  job_id: string;
+  total_transaction_count: number;
+  successful_transaction_count: number;
+  anomaly_count: number;
+  spending_by_currency: CurrencySpend[];
+  spending_by_category: CategorySpend[];
+  top_transactions: TopTransaction[];
+  repeated_merchants: MerchantSpend[];
+};
+
 export const CSV_MAPPING_FIELDS = [
   { key: "date", label: "Date", required: true },
   { key: "merchant", label: "Merchant / description", required: true },

@@ -25,6 +25,8 @@ class TransactionRepository(Protocol):
 
     async def count_anomalies(self, *, job_id: UUID) -> int: ...
 
+    async def update_category(self, transaction_id: UUID, *, category: str) -> bool: ...
+
     async def update_anomaly_flags(
         self,
         transaction_id: UUID,

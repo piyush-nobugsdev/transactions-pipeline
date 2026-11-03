@@ -35,6 +35,7 @@ Backend coding and architecture rules remain in [AGENTS.md](../AGENTS.md).
 - [Transactions](transactions-module.md)
 - [Processing](processing-module.md)
 - [Anomaly detection](anomalies-module.md)
+- [Insights](insights-module.md)
 
 Update the relevant module document when behavior or API contracts change, then
 update the roadmap if project progress or milestone ordering changes.

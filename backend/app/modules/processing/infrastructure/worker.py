@@ -12,6 +12,10 @@ from app.modules.anomalies.infrastructure.persistence.sqlalchemy_anomaly_reposit
     SqlAlchemyAnomalyRepository,
 )
 from app.modules.audits.infrastructure.persistence.sqlalchemy_job_repository import SqlAlchemyJobRepository
+from app.modules.insights.application.services.insights_service import InsightsService
+from app.modules.insights.infrastructure.persistence.sqlalchemy_insights_repository import (
+    SqlAlchemyInsightsRepository,
+)
 from app.modules.processing.application.services.processing_service import ProcessingService
 from app.modules.transactions.infrastructure.persistence.sqlalchemy_transaction_repository import (
     SqlAlchemyTransactionRepository,
@@ -31,6 +35,9 @@ def process_audit_job(job_id: str) -> str:
                 transaction_repository=SqlAlchemyTransactionRepository(session),
                 anomaly_scanner=AnomalyDetectionService(
                     repository=SqlAlchemyAnomalyRepository(session),
+                ),
+                transaction_categorizer=InsightsService(
+                    repository=SqlAlchemyInsightsRepository(session),
                 ),
                 storage=get_storage(),
                 unit_of_work=session,

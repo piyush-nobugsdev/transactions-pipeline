@@ -1,5 +1,6 @@
 import type {
   AuditJob,
+  AuditInsights,
   AuditResults,
   CSVMappingField,
   CSVMappingPreview,
@@ -97,4 +98,15 @@ export async function getAuditResults(
   }
 
   return (await response.json()) as AuditResults;
+}
+
+export async function getAuditInsights(jobId: string) {
+  const response = await fetch(`${API_BASE_URL}/v1/insights/${jobId}`);
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(getErrorMessage(data, "Unable to fetch audit insights."));
+  }
+
+  return (await response.json()) as AuditInsights;
 }

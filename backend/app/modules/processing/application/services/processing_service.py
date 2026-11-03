@@ -28,6 +28,10 @@ class AnomalyScanner(Protocol):
     async def analyze_and_persist(self, transactions: list[TransactionRecord]) -> None: ...
 
 
+class TransactionCategorizer(Protocol):
+    async def categorize_and_persist(self, transactions: list[TransactionRecord]) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class ProcessingResult:
     job_id: UUID
@@ -42,12 +46,14 @@ class ProcessingService:
         job_repository: JobRepository,
         transaction_repository: TransactionRepository,
         anomaly_scanner: AnomalyScanner,
+        transaction_categorizer: TransactionCategorizer,
         storage: Storage,
         unit_of_work: UnitOfWork,
     ) -> None:
         self.job_repository = job_repository
         self.transaction_repository = transaction_repository
         self.anomaly_scanner = anomaly_scanner
+        self.transaction_categorizer = transaction_categorizer
         self.storage = storage
         self.unit_of_work = unit_of_work
 
@@ -69,6 +75,7 @@ class ProcessingService:
             row_count_raw, records = clean_transactions(content, job_id=job.id)
             transactions = await self.transaction_repository.bulk_create(records)
             await self.anomaly_scanner.analyze_and_persist(transactions)
+            await self.transaction_categorizer.categorize_and_persist(transactions)
             await self.job_repository.update(
                 job_id,
                 status=JobStatus.COMPLETED,

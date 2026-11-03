@@ -75,6 +75,13 @@ class SqlAlchemyTransactionRepository:
         result = await self.session.execute(statement)
         return result.scalar_one()
 
+    async def update_category(self, transaction_id: UUID, *, category: str) -> bool:
+        transaction = await self.session.get(Transaction, transaction_id)
+        if transaction is None:
+            return False
+        transaction.category = category
+        return True
+
     async def update_anomaly_flags(
         self,
         transaction_id: UUID,

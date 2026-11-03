@@ -6,6 +6,7 @@ import pytest
 
 from app.modules.anomalies.application.services.anomaly_service import AnomalyDetectionService
 from app.modules.audits.domain.entities import JobRecord, JobStatus
+from app.modules.insights.application.services.insights_service import InsightsService
 from app.modules.processing.application.services.processing_service import ProcessingService
 from app.modules.transactions.domain.entities import TransactionRecord
 
@@ -64,6 +65,37 @@ class FakeTransactionRepository:
         )
         return self.persisted
 
+    async def list(self, *, job_id: UUID | None = None, offset: int = 0, limit: int = 50):
+        matching = [item for item in self.persisted if item.job_id == job_id]
+        return matching[offset : offset + limit]
+
+    async def bulk_update_categories(self, categories: dict[UUID, str]) -> None:
+        for transaction in self.persisted:
+            if transaction.id in categories:
+                transaction.category = categories[transaction.id]
+
+    async def update_category(self, transaction_id: UUID, *, category: str) -> bool:
+        for transaction in self.persisted:
+            if transaction.id == transaction_id:
+                transaction.category = category
+                return True
+        return False
+
+
+class FakeInsightsRepository:
+    def __init__(self, jobs: FakeJobRepository, transactions: FakeTransactionRepository) -> None:
+        self.jobs = jobs
+        self.transactions = transactions
+
+    async def job_exists(self, job_id: UUID) -> bool:
+        return await self.jobs.get(job_id) is not None
+
+    async def list_transactions_for_job(self, job_id: UUID, *, offset: int = 0, limit: int = 500):
+        return await self.transactions.list(job_id=job_id, offset=offset, limit=limit)
+
+    async def update_categories(self, categories: dict[UUID, str]) -> None:
+        await self.transactions.bulk_update_categories(categories)
+
 
 class FakeAnomalyScanner:
     def __init__(self, *, error: Exception | None = None) -> None:
@@ -73,6 +105,14 @@ class FakeAnomalyScanner:
     async def analyze_and_persist(self, transactions: list[object]) -> None:
         if self.error is not None:
             raise self.error
+        self.transactions = transactions
+
+
+class FakeTransactionCategorizer:
+    def __init__(self) -> None:
+        self.transactions: list[object] = []
+
+    async def categorize_and_persist(self, transactions: list[object]) -> None:
         self.transactions = transactions
 
 
@@ -106,11 +146,13 @@ async def test_processing_cleans_csv_persists_rows_and_completes_job():
     jobs = FakeJobRepository()
     transactions = FakeTransactionRepository()
     anomaly_scanner = FakeAnomalyScanner()
+    transaction_categorizer = FakeTransactionCategorizer()
     unit_of_work = FakeUnitOfWork()
     service = ProcessingService(
         job_repository=jobs,
         transaction_repository=transactions,
         anomaly_scanner=anomaly_scanner,
+        transaction_categorizer=transaction_categorizer,
         storage=FakeStorage(
             b"txn_id,date,merchant,amount,currency,status,category,account_id\n"
             b"t-1,01-03-2026,Shop,$12.50,usd,SUCCESS,,acct-1\n"
@@ -128,6 +170,7 @@ async def test_processing_cleans_csv_persists_rows_and_completes_job():
     assert transactions.records[0]["currency"] == "USD"
     assert transactions.records[0]["category"] == "Uncategorised"
     assert anomaly_scanner.transactions == transactions.persisted
+    assert transaction_categorizer.transactions == transactions.persisted
     assert jobs.job.status == JobStatus.COMPLETED
     assert unit_of_work.commits == 2
 
@@ -145,6 +188,7 @@ async def test_processing_passes_all_transactions_to_anomaly_scanner():
         job_repository=jobs,
         transaction_repository=transactions,
         anomaly_scanner=anomaly_scanner,
+        transaction_categorizer=FakeTransactionCategorizer(),
         storage=FakeStorage(
             ("txn_id,date,merchant,amount,currency,status,account_id\n" + rows).encode(),
         ),
@@ -165,6 +209,7 @@ async def test_processing_marks_job_failed_when_csv_is_invalid():
         job_repository=jobs,
         transaction_repository=FakeTransactionRepository(),
         anomaly_scanner=FakeAnomalyScanner(),
+        transaction_categorizer=FakeTransactionCategorizer(),
         storage=FakeStorage(b"wrong,columns\na,b\n"),
         unit_of_work=unit_of_work,
     )
@@ -185,6 +230,7 @@ async def test_processing_marks_job_failed_when_csv_row_is_short():
         job_repository=jobs,
         transaction_repository=FakeTransactionRepository(),
         anomaly_scanner=FakeAnomalyScanner(),
+        transaction_categorizer=FakeTransactionCategorizer(),
         storage=FakeStorage(
             b"txn_id,date,merchant,amount,currency,status,account_id\n"
             b"t-1,2026-03-01,Shop,12.50,USD,SUCCESS\n"
@@ -207,6 +253,7 @@ async def test_processing_marks_job_failed_when_anomaly_analysis_fails():
         job_repository=jobs,
         transaction_repository=FakeTransactionRepository(),
         anomaly_scanner=FakeAnomalyScanner(error=RuntimeError("analysis unavailable")),
+        transaction_categorizer=FakeTransactionCategorizer(),
         storage=FakeStorage(
             b"date,merchant,amount,currency,status,account_id\n"
             b"2026-03-01,Shop,12.50,USD,SUCCESS,acct-1\n"
@@ -233,6 +280,7 @@ async def test_processing_persists_anomaly_findings_before_completing_job():
         anomaly_scanner=AnomalyDetectionService(
             repository=FakeAnomalyRepository(transactions.persisted),
         ),
+        transaction_categorizer=FakeTransactionCategorizer(),
         storage=FakeStorage(
             b"txn_id,date,merchant,amount,currency,status,account_id\n"
             b"txn-1,2026-03-01,Amazon,100.00,INR,SUCCESS,acct-1\n"
@@ -247,3 +295,41 @@ async def test_processing_persists_anomaly_findings_before_completing_job():
     assert len(transactions.persisted) == 2
     assert all(record.is_anomaly for record in transactions.persisted)
     assert all(record.anomaly_reason.value == "duplicate_payment" for record in transactions.persisted)
+
+
+@pytest.mark.asyncio
+async def test_processing_categorizes_transactions_and_builds_currency_aware_insights():
+    jobs = FakeJobRepository()
+    transactions = FakeTransactionRepository()
+    service = ProcessingService(
+        job_repository=jobs,
+        transaction_repository=transactions,
+        anomaly_scanner=AnomalyDetectionService(
+            repository=FakeAnomalyRepository(transactions.persisted),
+        ),
+        transaction_categorizer=InsightsService(
+            repository=FakeInsightsRepository(jobs, transactions),
+        ),
+        storage=FakeStorage(
+            b"date,merchant,amount,currency,status,category,account_id\n"
+            b"2026-03-01,Amazon,100.00,INR,SUCCESS,,acct-1\n"
+            b"2026-03-02,Amazon,99.50,INR,SUCCESS,,acct-1\n"
+            b"2026-03-03,Corner Cafe,25.00,USD,SUCCESS,,acct-2\n"
+        ),
+        unit_of_work=FakeUnitOfWork(),
+    )
+
+    await service.process(jobs.job.id)
+    insights = await service.transaction_categorizer.get_job_insights(jobs.job.id)
+
+    assert {item.category for item in transactions.persisted} == {
+        "Office Supplies",
+        "Food & Dining",
+    }
+    assert insights.total_transaction_count == 3
+    assert insights.anomaly_count == 2
+    assert [(item.currency, item.amount) for item in insights.spending_by_currency] == [
+        ("INR", Decimal("199.50")),
+        ("USD", Decimal("25.00")),
+    ]
+    assert insights.repeated_merchants[0].merchant == "Amazon"

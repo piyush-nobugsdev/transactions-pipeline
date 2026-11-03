@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  getAuditInsights,
   getAuditResults,
   getAuditStatus,
   previewAuditFile,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/api";
 import {
   CSV_MAPPING_FIELDS,
+  type AuditInsights,
   type AuditJob,
   type AuditResults,
   type CSVMappingField,
@@ -37,6 +39,7 @@ export default function Home() {
   const [businessLabel, setBusinessLabel] = useState("");
   const [job, setJob] = useState<AuditJob | null>(null);
   const [results, setResults] = useState<AuditResults | null>(null);
+  const [insights, setInsights] = useState<AuditInsights | null>(null);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
   const [resultsError, setResultsError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -53,10 +56,11 @@ export default function Home() {
 
     if (job.status === "completed") {
       let isCurrent = true;
-      void getAuditResults(job.id)
-        .then((jobResults) => {
+      void Promise.all([getAuditResults(job.id), getAuditInsights(job.id)])
+        .then(([jobResults, jobInsights]) => {
           if (isCurrent) {
             setResults(jobResults);
+            setInsights(jobInsights);
           }
         })
         .catch((resultsError) => {
@@ -175,6 +179,7 @@ export default function Home() {
       );
       setJob(createdJob);
       setResults(null);
+      setInsights(null);
       setResultsError("");
       setIsPolling(!FINAL_STATUSES.has(createdJob.status));
       setBusinessLabel("");
@@ -232,6 +237,28 @@ export default function Home() {
         resultsError instanceof Error
           ? resultsError.message
           : "Audit results could not be loaded.",
+      );
+    } finally {
+      setIsLoadingResults(false);
+    }
+  };
+
+  const retryReport = async () => {
+    if (!job) return;
+    setIsLoadingResults(true);
+    setResultsError("");
+    try {
+      const [jobResults, jobInsights] = await Promise.all([
+        getAuditResults(job.id, results?.offset ?? 0),
+        getAuditInsights(job.id),
+      ]);
+      setResults(jobResults);
+      setInsights(jobInsights);
+    } catch (reportError) {
+      setResultsError(
+        reportError instanceof Error
+          ? reportError.message
+          : "Audit report could not be loaded.",
       );
     } finally {
       setIsLoadingResults(false);
@@ -496,7 +523,7 @@ export default function Home() {
               <button
                 type="button"
                 className="results-retry-button"
-                onClick={() => void changeResultsPage(results?.offset ?? 0)}
+                onClick={() => void retryReport()}
               >
                 Retry
               </button>
@@ -596,6 +623,137 @@ export default function Home() {
               </div>
             </>
           ) : null}
+        </section>
+      ) : null}
+
+      {job?.status === "completed" && insights ? (
+        <section className="panel insights-panel" aria-labelledby="insights-title">
+          <div className="insights-heading">
+            <div>
+              <h2 id="insights-title">Spending insights</h2>
+              <p className="muted-message">
+                Deterministic merchant-based categories. Spending totals include
+                successful transactions only and are kept separate by currency.
+              </p>
+            </div>
+            <span className="insight-anomaly-count">
+              {insights.anomaly_count} anomaly flags
+            </span>
+          </div>
+
+          <div className="insight-section">
+            <h3>Spend by currency</h3>
+            <div className="insight-card-grid">
+              {insights.spending_by_currency.length ? (
+                insights.spending_by_currency.map((item) => (
+                  <article className="insight-card" key={item.currency}>
+                    <span>{item.currency} spend</span>
+                    <strong>
+                      {item.currency}{" "}
+                      {Number(item.amount).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
+                    </strong>
+                    <small>{item.transaction_count} successful transactions</small>
+                  </article>
+                ))
+              ) : (
+                <p className="muted-message">No successful transactions to total.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="insight-section">
+            <h3>Spend by category</h3>
+            {insights.spending_by_category.length ? (
+              <div className="insight-table-scroll">
+                <table className="insight-table">
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Currency</th>
+                      <th>Spend</th>
+                      <th>Transactions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {insights.spending_by_category.map((item) => (
+                      <tr key={`${item.category}-${item.currency}`}>
+                        <td>{item.category}</td>
+                        <td>{item.currency}</td>
+                        <td>
+                          {item.currency}{" "}
+                          {Number(item.amount).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td>{item.transaction_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="muted-message">No category spend to report yet.</p>
+            )}
+          </div>
+
+          <div className="insight-columns">
+            <div className="insight-section">
+              <h3>Highest transactions by currency</h3>
+              {insights.top_transactions.length ? (
+                <ol className="insight-list">
+                  {insights.top_transactions.map((item) => (
+                    <li key={item.id}>
+                      <div>
+                        <strong>{item.merchant}</strong>
+                        <span>{item.date} · {item.category}</span>
+                      </div>
+                      <strong>
+                        {item.currency}{" "}
+                        {Number(item.amount).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
+                        {item.is_anomaly ? (
+                          <span className="top-transaction-alert"> Flagged</span>
+                        ) : null}
+                      </strong>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="muted-message">No successful transactions found.</p>
+              )}
+            </div>
+
+            <div className="insight-section">
+              <h3>Most repeated merchants</h3>
+              {insights.repeated_merchants.length ? (
+                <ol className="insight-list">
+                  {insights.repeated_merchants.map((merchant) => (
+                    <li key={merchant.merchant}>
+                      <div>
+                        <strong>{merchant.merchant}</strong>
+                        <span>
+                          {merchant.currencies
+                            .map(
+                              (item) =>
+                                `${item.transaction_count} ${item.currency}`,
+                            )
+                            .join(" · ")}
+                        </span>
+                      </div>
+                      <strong>{merchant.transaction_count} transactions</strong>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="muted-message">
+                  No merchant appears more than once among successful transactions.
+                </p>
+              )}
+            </div>
+          </div>
         </section>
       ) : null}
     </main>

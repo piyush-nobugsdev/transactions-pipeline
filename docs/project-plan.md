@@ -124,8 +124,13 @@ the root-level operational guides and `AGENTS.md` before coding.
   support processing, but full database integration coverage and a public
   application bulk-write use case remain outstanding.
 - Processing: CSV cleaning, transaction persistence, and anomaly detection run
-  through a Celery worker. Idempotent retries and database-backed worker
-  integration tests are outstanding.
+  through a Celery worker. Deterministic merchant-based categorization runs
+  before completion. Idempotent retries and database-backed worker integration
+  tests are outstanding.
+- Insights: category suggestions, currency-aware spend/category aggregates,
+  highest transactions, and repeated-merchant insights are implemented with a
+  dedicated read API and frontend report. AI-powered classification and
+  narrative insights remain outstanding.
 - Anomaly detection: the three initial rules are invoked by processing and
   exposed through an API. Detection correctness, scale, configuration, and
   integration coverage need work. See
