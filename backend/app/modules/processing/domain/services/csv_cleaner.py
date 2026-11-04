@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
-from app.modules.transactions.domain.entities import TransactionStatus
+from .csv_vocabulary import normalize_amount, normalize_category, normalize_currency, normalize_status
 
 
 class CSVValidationError(ValueError):
@@ -65,13 +65,14 @@ def clean_transactions(content: bytes, *, job_id: UUID) -> tuple[int, list[dict[
             merchant = row["merchant"].strip()
             if not merchant:
                 raise CSVValidationError(f"CSV row {row_number} has an empty merchant.")
-            amount = _parse_amount(row["amount"].strip())
+            amount = normalize_amount(row["amount"])
             if amount <= 0:
                 raise CSVValidationError(f"CSV row {row_number} has a non-positive amount.")
-            currency = row["currency"].strip().upper()
-            if len(currency) != 3 or not currency.isalpha():
-                raise CSVValidationError(f"CSV row {row_number} has an invalid currency.")
-            status = TransactionStatus(row["status"].strip().upper())
+            try:
+                currency = normalize_currency(row["currency"])
+            except ValueError as exc:
+                raise CSVValidationError(f"CSV row {row_number} has an invalid currency.") from exc
+            status = normalize_status(row["status"])
             account_id = row["account_id"].strip()
             if not account_id:
                 raise CSVValidationError(f"CSV row {row_number} has an empty account_id.")
@@ -81,7 +82,7 @@ def clean_transactions(content: bytes, *, job_id: UUID) -> tuple[int, list[dict[
             raise CSVValidationError(f"CSV row {row_number} contains an invalid value.") from exc
 
         txn_id = (row.get("txn_id") or "").strip() or None
-        category = (row.get("category") or "").strip() or "Uncategorised"
+        category = normalize_category(row.get("category") or "")
         duplicate_key = (txn_id or "", transaction_date, amount, merchant)
         if duplicate_key in seen:
             continue
@@ -111,11 +112,3 @@ def _parse_date(value: str) -> date:
         except ValueError:
             continue
     raise ValueError("unsupported date format")
-
-
-def _parse_amount(value: str) -> Decimal:
-    normalized = value.replace(",", "").replace("$", "").replace("₹", "").strip()
-    amount = Decimal(normalized)
-    if not amount.is_finite():
-        raise InvalidOperation
-    return amount

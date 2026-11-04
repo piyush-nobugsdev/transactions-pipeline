@@ -59,6 +59,88 @@ def test_maps_common_bank_headers_and_ignores_unknown_columns():
     assert b"Bank Branch" not in result
 
 
+def test_normalizes_common_headers_and_values_across_transaction_fields():
+    content = (
+        b"Transaction ID,Transaction Date,Vendor Name,Total Amount,Currency Name,"
+        b"Payment Status,Expense Category,Account No\n"
+        b'txn-1,2026-01-01,Corner Cafe,"INR 1,299.00",Indian Rupees,Completed,groceries,acct-1\n'
+    )
+    service = CSVMappingService()
+    preview = service.preview(content)
+
+    assert preview.mapping_status == {
+        "date": "automatic",
+        "merchant": "automatic",
+        "amount": "automatic",
+        "currency": "automatic",
+        "status": "automatic",
+        "account_id": "automatic",
+        "txn_id": "automatic",
+        "category": "automatic",
+    }
+
+    canonical = service.canonicalize(content, preview.mappings)
+    _, records = clean_transactions(canonical, job_id=UUID(JOB_ID))
+
+    assert records[0]["txn_id"] == "txn-1"
+    assert records[0]["date"].isoformat() == "2026-01-01"
+    assert records[0]["merchant"] == "Corner Cafe"
+    assert records[0]["amount"] == Decimal("1299.00")
+    assert records[0]["currency"] == "INR"
+    assert records[0]["status"].value == "SUCCESS"
+    assert records[0]["category"] == "Food & Dining"
+    assert records[0]["account_id"] == "acct-1"
+
+
+@pytest.mark.parametrize(
+    ("source_status", "expected_status"),
+    [
+        ("COMPLETED", "SUCCESS"),
+        ("Paid", "SUCCESS"),
+        ("Declined", "FAILED"),
+        ("In Progress", "PENDING"),
+    ],
+)
+def test_normalizes_common_transaction_status_terms(source_status, expected_status):
+    content = (
+        "date,merchant,amount,currency,status,account_id\n"
+        f"2026-01-01,Shop,USD 12.50,US dollars,{source_status},acct-1\n"
+    ).encode()
+
+    _, records = clean_transactions(content, job_id=UUID(JOB_ID))
+
+    assert records[0]["amount"] == Decimal("12.50")
+    assert records[0]["currency"] == "USD"
+    assert records[0]["status"].value == expected_status
+
+
+@pytest.mark.parametrize(
+    ("currency", "expected_currency"),
+    [("$", "USD"), ("₹", "INR"), ("€", "EUR"), ("£", "GBP"), ("¥", "JPY")],
+)
+def test_normalizes_currency_symbols(currency, expected_currency):
+    content = (
+        "date,merchant,amount,currency,status,account_id\n"
+        f'2026-01-01,Shop,"1,000.00",{currency},SUCCESS,acct-1\n'
+    ).encode()
+
+    _, records = clean_transactions(content, job_id=UUID(JOB_ID))
+
+    assert records[0]["currency"] == expected_currency
+    assert records[0]["amount"] == Decimal("1000.00")
+
+
+def test_normalizes_european_decimal_and_grouping_separators():
+    content = (
+        b"date,merchant,amount,currency,status,account_id\n"
+        b'2026-01-01,Shop,"EUR 1.299,50",EUR,completed,acct-1\n'
+    )
+
+    _, records = clean_transactions(content, job_id=UUID(JOB_ID))
+
+    assert records[0]["amount"] == Decimal("1299.50")
+
+
 def test_header_matching_trims_whitespace_and_ignores_case():
     preview = preview_csv_mapping(
         b"  tRaNsAcTiOn DaTe  , DESCRIPTION , transaction amount , "

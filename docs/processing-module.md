@@ -81,11 +81,13 @@ The Processing application layer depends on repository/storage/unit-of-work prot
 
 ## CSV contract
 
-Before storage, the upload flow previews headers and automatically maps recognized aliases to canonical fields. Matching trims surrounding whitespace and ignores case and punctuation. For example, `Transaction Date`, `Txn Date`, `Posting Date`, and `Value Date` map to `date`; `Description`, `Narration`, `Particulars`, and `Transaction Details` map to `merchant`; `Transaction Amount` maps to `amount`; and `Account Number` maps to `account_id`. The preview response exposes candidate aliases and marks each field as automatic, ambiguous, or missing. If a required field is missing or has multiple candidate headers, the user selects a source column in the upload UI. The API validates that each selected source exists and is unique. `txn_id` and `category` are optional. Unmapped extra columns are ignored.
+Before storage, the upload flow previews headers and automatically maps recognized aliases to canonical fields. Matching trims surrounding whitespace and ignores case and punctuation. For example, `Transaction Date`, `Txn Date`, `Posting Date`, and `Value Date` map to `date`; `Description`, `Narration`, `Particulars`, and `Vendor Name` map to `merchant`; `Transaction Amount` and `Total Amount` map to `amount`; payment status headers map to `status`; and `Account Number` or `Account No` map to `account_id`. The preview response exposes candidate aliases and marks each field as automatic, ambiguous, or missing. If a required field is missing or has multiple candidate headers, the user selects a source column in the upload UI. The API validates that each selected source exists and is unique. `txn_id` and `category` are optional. Unmapped extra columns are ignored.
 
 Files with separate debit and credit columns are currently unsupported and are blocked with guidance to convert them to a single signed amount column. The selected data is rewritten to the canonical CSV schema before storage; the existing cleaner and downstream transaction schema remain unchanged.
 
-The canonical CSV header is normalized by trimming whitespace and lowercasing names. The required columns are:
+The canonical CSV header is normalized by trimming whitespace and lowercasing names. Common transaction values are normalized through a bounded vocabulary before validation: completed/paid/settled terms map to `SUCCESS`, declined/rejected/cancelled terms map to `FAILED`, and in-progress/authorized terms map to `PENDING`; common currency names and symbols map to ISO currency codes; common amount formats accept currency markers, grouping separators, and decimal commas; and recognized category synonyms map to the prototype's standard category labels. Merchant names and identifiers are trimmed but otherwise preserved. Unsupported status, currency, or amount values still fail validation rather than being guessed.
+
+The required columns are:
 
 - `date`
 - `merchant`
@@ -94,9 +96,9 @@ The canonical CSV header is normalized by trimming whitespace and lowercasing na
 - `status`
 - `account_id`
 
-The optional columns are `txn_id` and `category`. Unknown source columns are dropped during mapping. Duplicate headers after normalization, missing required mappings, malformed UTF-8, rows with extra or missing values, empty merchants/accounts, invalid dates/currencies/statuses, and non-positive amounts are rejected. Entirely blank rows are ignored. CSV status values must normalize to one of `SUCCESS`, `FAILED`, or `PENDING`; values such as `COMPLETED` are not accepted as transaction statuses.
+The optional columns are `txn_id` and `category`. Unknown source columns are dropped during mapping. Duplicate headers after normalization, missing required mappings, malformed UTF-8, rows with extra or missing values, empty merchants/accounts, invalid dates/currencies/statuses, and non-positive amounts are rejected. Entirely blank rows are ignored. CSV status values must normalize to one of `SUCCESS`, `FAILED`, or `PENDING`; common values such as `COMPLETED` and `DECLINED` are mapped to those transaction statuses.
 
-For each nonblank data row, `row_count_raw` increases before cleaning. `row_count_clean` is the number of normalized records after exact duplicate removal. The cleaner currently accepts only UTF-8/UTF-8 BOM input. Currency is uppercased and must be three alphabetic characters. Status must match the domain `TransactionStatus` values (`SUCCESS`, `FAILED`, `PENDING`). The current row validation error may say only that a row contains an invalid value; inspect the worker traceback to identify the failing field/value.
+For each nonblank data row, `row_count_raw` increases before cleaning. `row_count_clean` is the number of normalized records after exact duplicate removal. The cleaner currently accepts only UTF-8/UTF-8 BOM input. Currency is normalized to an ISO-style three-letter code. The current row validation error may say only that a row contains an invalid value; inspect the worker traceback to identify the failing field/value.
 
 Exact duplicate key:
 
